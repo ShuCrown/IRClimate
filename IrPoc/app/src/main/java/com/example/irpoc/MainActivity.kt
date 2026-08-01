@@ -32,6 +32,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -154,6 +158,8 @@ fun IrPocScreen(context: Context) {
         var timerDelayMin by remember { mutableIntStateOf(30) }
         var timerActive by remember { mutableStateOf(false) }
         var timerRemainingSec by remember { mutableIntStateOf(0) }
+        var isCustomDelay by remember { mutableStateOf(false) }
+        var customDelayInput by remember { mutableStateOf("") }
         val scope = rememberCoroutineScope()
 
         val modeMap = listOf(0x20 to "制冷", 0x40 to "制热", 0x10 to "除湿", 0x00 to "自动")
@@ -228,11 +234,42 @@ fun IrPocScreen(context: Context) {
         Text("延时", style = MaterialTheme.typography.labelLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(15, 30, 60, 120).forEach { min ->
-                if (min == timerDelayMin) {
-                    Button(onClick = { timerDelayMin = min }) { Text("${min}分钟") }
+                if (!isCustomDelay && min == timerDelayMin) {
+                    Button(onClick = { timerDelayMin = min; isCustomDelay = false }) { Text("${min}分钟") }
                 } else {
-                    OutlinedButton(onClick = { timerDelayMin = min }) { Text("${min}分钟") }
+                    OutlinedButton(onClick = { timerDelayMin = min; isCustomDelay = false }) { Text("${min}分钟") }
                 }
+            }
+            if (isCustomDelay) {
+                Button(onClick = { }) { Text("自定义") }
+            } else {
+                OutlinedButton(onClick = {
+                    isCustomDelay = true
+                    customDelayInput = ""
+                }) { Text("自定义") }
+            }
+        }
+        if (isCustomDelay) {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = customDelayInput,
+                    onValueChange = { input ->
+                        val filtered = input.filter { it.isDigit() }
+                        customDelayInput = filtered
+                        val mins = filtered.toIntOrNull()
+                        if (mins != null && mins in 1..1440) {
+                            timerDelayMin = mins
+                        }
+                    },
+                    label = { Text("分钟") },
+                    placeholder = { Text("1~1440") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.width(120.dp),
+                    textStyle = MaterialTheme.typography.bodyLarge
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("分钟 (1~1440)", style = MaterialTheme.typography.bodySmall)
             }
         }
 
