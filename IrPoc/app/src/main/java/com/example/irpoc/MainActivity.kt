@@ -117,52 +117,8 @@ fun IrPocScreen(context: Context, permissionLauncher: ActivityResultLauncher<Str
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text("IR PoC — vivo 标准接口验证", style = MaterialTheme.typography.headlineSmall)
+        Text("奥克斯空调遥控", style = MaterialTheme.typography.headlineSmall)
         Divider()
-
-        Button(onClick = {
-            try {
-                val pattern = necPattern(0x00FF00FF)
-                irManager.transmit(38000, pattern)
-                log("transmit 成功: 38000Hz, NEC 0x00FF00FF, ${pattern.size}段")
-                log("👉 用另一手机摄像头对准本机顶部IR灯，应见紫白光点")
-            } catch (e: Exception) {
-                log("transmit 抛异常: ${e.javaClass.name}")
-                log("  message: ${e.message}")
-                e.stackTraceToString().lineSequence().take(8).forEach { log("  $it") }
-            }
-        }) {
-            Text("发射 NEC 测试码 (38kHz)")
-        }
-
-        Button(onClick = {
-            try {
-                val pattern = necPattern(0x00FF00FF)
-                repeat(3) {
-                    irManager.transmit(38000, pattern)
-                    Thread.sleep(40)
-                }
-                log("连发3次完成")
-            } catch (e: Exception) {
-                log("连发异常: ${e.javaClass.name}: ${e.message}")
-            }
-        }) {
-            Text("连发 3 次（增强可见性）")
-        }
-
-        Button(onClick = {
-            try {
-                irManager.transmit(38000, intArrayOf(9000, 4500, 562, 1688, 562, 562, 562))
-                log("短码发射成功（未抛异常）")
-            } catch (e: Exception) {
-                log("短码异常: ${e.javaClass.name}: ${e.message}")
-            }
-        }) {
-            Text("发射短测试码")
-        }
-
-        Divider()
-        Text("奥克斯空调控制", style = MaterialTheme.typography.titleMedium)
 
         // ===== 状态变量 =====
         var currentTemp by remember { mutableIntStateOf(26) }
@@ -174,6 +130,9 @@ fun IrPocScreen(context: Context, permissionLauncher: ActivityResultLauncher<Str
         var timerRemainingSec by remember { mutableIntStateOf(0) }
         var isCustomDelay by remember { mutableStateOf(false) }
         var customDelayInput by remember { mutableStateOf("") }
+        var isScheduleMode by remember { mutableStateOf(false) }
+        var scheduleHour by remember { mutableIntStateOf(22) }
+        var scheduleMinute by remember { mutableIntStateOf(0) }
 
         // 监听 Service 广播
         val timerReceiver = remember {
@@ -282,46 +241,95 @@ fun IrPocScreen(context: Context, permissionLauncher: ActivityResultLauncher<Str
             Button(onClick = { if (timerTargetTemp < 31) timerTargetTemp++ }) { Text("+") }
         }
 
-        // ===== 延时选择 =====
-        Text("延时", style = MaterialTheme.typography.labelLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf(15, 30, 60, 120).forEach { min ->
-                if (!isCustomDelay && min == timerDelayMin) {
-                    Button(onClick = { timerDelayMin = min; isCustomDelay = false }) { Text("${min}分钟") }
-                } else {
-                    OutlinedButton(onClick = { timerDelayMin = min; isCustomDelay = false }) { Text("${min}分钟") }
-                }
-            }
-            if (isCustomDelay) {
-                Button(onClick = { }) { Text("自定义") }
+        // ===== 模式切换 =====
+        Text("触发方式", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!isScheduleMode) {
+                Button(onClick = { }) { Text("延时") }
             } else {
-                OutlinedButton(onClick = {
-                    isCustomDelay = true
-                    customDelayInput = ""
-                }) { Text("自定义") }
+                OutlinedButton(onClick = { isScheduleMode = false }) { Text("延时") }
+            }
+            if (isScheduleMode) {
+                Button(onClick = { }) { Text("指定时间") }
+            } else {
+                OutlinedButton(onClick = { isScheduleMode = true; isCustomDelay = false }) { Text("指定时间") }
             }
         }
-        if (isCustomDelay) {
+
+        if (isScheduleMode) {
+            // ===== 指定时间 =====
+            Text("时间", style = MaterialTheme.typography.labelLarge)
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 OutlinedTextField(
-                    value = customDelayInput,
-                    onValueChange = { input ->
-                        val filtered = input.filter { it.isDigit() }
-                        customDelayInput = filtered
-                        val mins = filtered.toIntOrNull()
-                        if (mins != null && mins in 1..1440) {
-                            timerDelayMin = mins
-                        }
+                    value = scheduleHour.toString().padStart(2, '0'),
+                    onValueChange = { s ->
+                        val v = s.filter { it.isDigit() }.take(2).toIntOrNull()
+                        if (v != null && v in 0..23) scheduleHour = v
+                        else if (s.isEmpty()) scheduleHour = 0
                     },
-                    label = { Text("分钟") },
-                    placeholder = { Text("1~1440") },
+                    label = { Text("时") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    modifier = Modifier.width(120.dp),
+                    modifier = Modifier.width(72.dp),
                     textStyle = MaterialTheme.typography.bodyLarge
                 )
                 Spacer(Modifier.width(8.dp))
-                Text("分钟 (1~1440)", style = MaterialTheme.typography.bodySmall)
+                Text(":", style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.width(8.dp))
+                OutlinedTextField(
+                    value = scheduleMinute.toString().padStart(2, '0'),
+                    onValueChange = { s ->
+                        val v = s.filter { it.isDigit() }.take(2).toIntOrNull()
+                        if (v != null && v in 0..59) scheduleMinute = v
+                        else if (s.isEmpty()) scheduleMinute = 0
+                    },
+                    label = { Text("分") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.width(72.dp),
+                    textStyle = MaterialTheme.typography.bodyLarge
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+        } else {
+            // ===== 延时选择 =====
+            Text("延时", style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(15, 30, 60, 120).forEach { min ->
+                    if (!isCustomDelay && min == timerDelayMin) {
+                        Button(onClick = { timerDelayMin = min; isCustomDelay = false }) { Text("${min}分钟") }
+                    } else {
+                        OutlinedButton(onClick = { timerDelayMin = min; isCustomDelay = false }) { Text("${min}分钟") }
+                    }
+                }
+                if (isCustomDelay) {
+                    Button(onClick = { }) { Text("自定义") }
+                } else {
+                    OutlinedButton(onClick = { isCustomDelay = true; customDelayInput = "" }) { Text("自定义") }
+                }
+            }
+            if (isCustomDelay) {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = customDelayInput,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() }
+                            customDelayInput = filtered
+                            val mins = filtered.toIntOrNull()
+                            if (mins != null && mins in 1..1440) {
+                                timerDelayMin = mins
+                            }
+                        },
+                        label = { Text("分钟") },
+                        placeholder = { Text("1~1440") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.width(120.dp),
+                        textStyle = MaterialTheme.typography.bodyLarge
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("分钟 (1~1440)", style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
 
@@ -347,13 +355,37 @@ fun IrPocScreen(context: Context, permissionLauncher: ActivityResultLauncher<Str
                         permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     }
                 }
+                val delayMin = if (isScheduleMode) {
+                    val now = java.util.Calendar.getInstance()
+                    val target = java.util.Calendar.getInstance().apply {
+                        set(java.util.Calendar.HOUR_OF_DAY, scheduleHour)
+                        set(java.util.Calendar.MINUTE, scheduleMinute)
+                        set(java.util.Calendar.SECOND, 0)
+                        set(java.util.Calendar.MILLISECOND, 0)
+                    }
+                    if (target.timeInMillis <= now.timeInMillis) {
+                        target.add(java.util.Calendar.DAY_OF_MONTH, 1)
+                    }
+                    ((target.timeInMillis - now.timeInMillis) / 60000).toInt()
+                } else {
+                    timerDelayMin
+                }
                 val intent = AcTimerService.startIntent(
-                    context, timerDelayMin, timerTargetTemp, currentMode, currentFan
+                    context, delayMin, timerTargetTemp, currentMode, currentFan
                 )
                 ContextCompat.startForegroundService(context, intent)
-                log("⏰ 启动后台定时: $timerDelayMin 分钟后 → ${timerTargetTemp}°C")
+                if (isScheduleMode) {
+                    log("⏰ 启动定时调温: ${scheduleHour.toString().padStart(2,'0')}:${scheduleMinute.toString().padStart(2,'0')} → ${timerTargetTemp}°C (${delayMin}分钟后)")
+                } else {
+                    log("⏰ 启动后台定时: $delayMin 分钟后 → ${timerTargetTemp}°C")
+                }
             }) {
-                Text("启动定时 → ${timerTargetTemp}°C (${timerDelayMin}分钟后)")
+                val label = if (isScheduleMode) {
+                    "${scheduleHour.toString().padStart(2,'0')}:${scheduleMinute.toString().padStart(2,'0')} → ${timerTargetTemp}°C"
+                } else {
+                    "${timerTargetTemp}°C (${timerDelayMin}分钟后)"
+                }
+                Text("启动定时 $label")
             }
         }
 
