@@ -132,6 +132,36 @@ fun IrPocScreen(context: Context) {
             Text("发射短测试码")
         }
 
+        Divider()
+        Text("奥克斯空调", style = MaterialTheme.typography.titleMedium)
+
+        Button(onClick = {
+            try {
+                val acData = auxAcData(powerOn = true, tempCelsius = 26, mode = 0x20, fanSpeed = 0xA0)
+                val pattern = bytesToNecPattern(acData)
+                irManager.transmit(38000, pattern)
+                log("AUX 开机: 26°C 制冷 自动风, ${pattern.size}段")
+                log("👉 对准空调红外接收窗")
+            } catch (e: Exception) {
+                log("AUX 开机异常: ${e.javaClass.name}: ${e.message}")
+            }
+        }) {
+            Text("AUX 开机 (26°C 制冷)")
+        }
+
+        Button(onClick = {
+            try {
+                val acData = auxAcData(powerOn = false, tempCelsius = 26, mode = 0x20, fanSpeed = 0xA0)
+                val pattern = bytesToNecPattern(acData)
+                irManager.transmit(38000, pattern)
+                log("AUX 关机: 发送关机码, ${pattern.size}段")
+            } catch (e: Exception) {
+                log("AUX 关机异常: ${e.javaClass.name}: ${e.message}")
+            }
+        }) {
+            Text("AUX 关机")
+        }
+
         Spacer(modifier = Modifier.height(4.dp))
         Divider()
         Text("日志（最新在上）：", style = MaterialTheme.typography.titleMedium)
@@ -152,6 +182,62 @@ fun necPattern(data: Int): IntArray {
         val bit = (data shr i) and 1
         list.add(562)
         list.add(if (bit == 1) 1688 else 562)
+    }
+    list.add(562)
+    return list.toIntArray()
+}
+
+/**
+ * 奥克斯空调 13 字节协议编码。
+ * 基于 NEC 时序（38kHz, 562/1688），每字节 LSB 先发。
+ * 第 13 字节 = 前 12 字节累加和 & 0xFF。
+ *
+ * @param powerOn true=开机, false=关机
+ * @param tempCelsius 温度 16~31°C
+ * @param mode 模式: 0x20=制冷, 0x40=制热, 0x10=除湿, 0x30=送风, 0x00=自动
+ * @param fanSpeed 风速: 0xA0=自动, 0x60=低, 0x40=中, 0x20=高
+ */
+fun auxAcData(
+    powerOn: Boolean,
+    tempCelsius: Int,
+    mode: Int,
+    fanSpeed: Int,
+    swingH: Boolean = true,
+    sleep: Boolean = false,
+    eco: Boolean = false,
+): ByteArray {
+    val tempVal = (tempCelsius - 8).coerceIn(0, 31)
+    // byte2: 温度(高5位) | 上下吹风(低3位, 101=下吹风)
+    val byte2 = ((tempVal shl 3) or 0b101).toByte()
+    // byte3: 左右摆风 (0xE0=开)
+    val byte3 = (if (swingH) 0xE0 else 0x00).toByte()
+    // byte7: 模式(高4位) | 睡眠(bit2)
+    val byte7 = (mode or (if (sleep) 0x04 else 0x00)).toByte()
+    // byte10: 开关(bit5) | ECO(bit3)
+    val byte10 = ((if (powerOn) 0x20 else 0x00) or (if (eco) 0x08 else 0x00)).toByte()
+    // byte12: 按键码，0x45=开关
+    val byte12 = 0x45.toByte()
+
+    val header = byteArrayOf(
+        0xC3.toByte(), byte2, byte3, 0x00, fanSpeed.toByte(), 0x00,
+        byte7, 0x00, 0x00, byte10, 0x00, byte12
+    )
+    val checksum = (header.sumOf { it.toInt() and 0xFF } and 0xFF).toByte()
+    return header + checksum
+}
+
+/**
+ * 将字节数组转换为 NEC 格式 IR pattern（微秒脉冲数组）。
+ * 引导码(9000+4500) + 每字节 LSB 先 8bit + 结束码(562)。
+ */
+fun bytesToNecPattern(data: ByteArray): IntArray {
+    val list = mutableListOf(9000, 4500)
+    for (byte in data) {
+        for (i in 0 until 8) {
+            val bit = (byte.toInt() shr i) and 1
+            list.add(562)
+            list.add(if (bit == 1) 1688 else 562)
+        }
     }
     list.add(562)
     return list.toIntArray()
