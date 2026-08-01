@@ -1,7 +1,6 @@
 package com.example.irpoc.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,17 +18,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -44,7 +39,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.irpoc.model.AcTimerTask
-import com.example.irpoc.model.RepeatType
 import com.example.irpoc.model.label
 import com.example.irpoc.model.timeText
 
@@ -60,7 +54,7 @@ fun HomeScreen(
     onPowerClick: () -> Unit,
     onAddTimer: () -> Unit,
     onTaskToggle: (AcTimerTask, Boolean) -> Unit,
-    onNavigate: (Screen) -> Unit = {},
+    onDeleteTask: (AcTimerTask) -> Unit,
 ) {
     Scaffold(
         topBar = { HomeTopBar() },
@@ -73,8 +67,7 @@ fun HomeScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = "新建定时")
             }
-        },
-        bottomBar = { BottomNavBar(Screen.Home, onNavigate) }
+        }
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -111,7 +104,7 @@ fun HomeScreen(
                         color = DarkText
                     )
                     Text(
-                        "全部",
+                        "${timerTasks.size}个",
                         fontSize = 14.sp,
                         color = GrayText
                     )
@@ -141,7 +134,11 @@ fun HomeScreen(
                 }
             } else {
                 items(timerTasks, key = { it.id }) { task ->
-                    TimerTaskItem(task = task, onToggle = { onTaskToggle(task, it) })
+                    TimerTaskItem(
+                        task = task,
+                        onToggle = { onTaskToggle(task, it) },
+                        onDelete = { onDeleteTask(task) }
+                    )
                 }
             }
 
@@ -299,6 +296,7 @@ private fun TempInfoColumn(label: String, value: String) {
 private fun TimerTaskItem(
     task: AcTimerTask,
     onToggle: (Boolean) -> Unit,
+    onDelete: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -330,21 +328,24 @@ private fun TimerTaskItem(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "制冷 · ${task.targetTemp}°C · 1小时",
+                        "${task.targetTemp}°C · ${task.repeatType.label()}",
                         fontSize = 13.sp,
                         color = GrayText
                     )
                 }
             }
-            Box {
-                Text(
-                    task.repeatType.label(),
-                    fontSize = 12.sp,
-                    color = GrayText,
-                    modifier = Modifier
-                        .offset(y = (-20).dp)
-                        .align(Alignment.TopStart)
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "删除",
+                        tint = LightGrayText,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
                 Switch(
                     checked = task.enabled,
                     onCheckedChange = onToggle,
@@ -354,52 +355,6 @@ private fun TimerTaskItem(
                         uncheckedThumbColor = Color.White,
                         uncheckedTrackColor = LightGrayText
                     )
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun BottomNavBar(
-    current: Screen,
-    onNavigate: (Screen) -> Unit,
-) {
-    val items = listOf(
-        Screen.Home to ("首页" to Icons.Outlined.Home),
-        Screen.Scene to ("场景" to Icons.Outlined.Settings),
-        Screen.Timer to ("定时" to Icons.Outlined.DateRange),
-        Screen.Profile to ("我的" to Icons.Outlined.Person),
-    )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White)
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        items.forEach { (screen, pair) ->
-            val (label, icon) = pair
-            val selected = screen == current
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .width(64.dp)
-                    .padding(vertical = 4.dp)
-                    .clickable { onNavigate(screen) }
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = if (selected) Teal else GrayText,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    label,
-                    fontSize = 11.sp,
-                    color = if (selected) Teal else GrayText
                 )
             }
         }

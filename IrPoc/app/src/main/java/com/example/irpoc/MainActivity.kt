@@ -70,14 +70,16 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
     var isPowerOn by remember { mutableStateOf(true) }
     var runHours by remember { mutableIntStateOf(2) }
 
-    // 定时任务列表（内存态）
+    // 持久化存储
+    val storage = remember { TimerStorage(context) }
+
+    // 定时任务列表（从持久化加载）
     val timerTasks = remember {
-        mutableStateListOf(
-            AcTimerTask(name = "起床降温", hour = 7, minute = 30, targetTemp = 23, repeatType = com.example.irpoc.model.RepeatType.WORKDAY),
-            AcTimerTask(name = "午休节能", hour = 13, minute = 0, targetTemp = 26, repeatType = com.example.irpoc.model.RepeatType.WORKDAY),
-            AcTimerTask(name = "睡前除湿", hour = 22, minute = 30, targetTemp = 24, repeatType = com.example.irpoc.model.RepeatType.DAILY, enabled = false),
-        )
+        mutableStateListOf<AcTimerTask>().apply { addAll(storage.loadTasks()) }
     }
+
+    // 每次列表变化时自动持久化
+    fun persist() = storage.saveTasks(timerTasks.toList())
 
     // Service 广播监听
     var timerActive by remember { mutableStateOf(false) }
@@ -178,6 +180,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                 if (idx >= 0) {
                     val updated = task.copy(enabled = enabled)
                     timerTasks[idx] = updated
+                    persist()
                     if (enabled) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
@@ -192,12 +195,19 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                     }
                 }
             },
-            onNavigate = { currentScreen = it }
+            onDeleteTask = { task ->
+                timerTasks.removeAll { it.id == task.id }
+                persist()
+                context.stopService(AcTimerService.cancelIntent(context))
+                log("🗑 删除定时: ${task.name}")
+            }
         )
         Screen.Timer -> CreateTimerScreen(
+            defaultTemp = targetTemp,
             onBack = { currentScreen = Screen.Home },
             onSave = { task ->
                 timerTasks.add(task)
+                persist()
                 currentScreen = Screen.Home
                 if (task.enabled) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -228,7 +238,10 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                 val idx = timerTasks.indexOfFirst { it.id == task.id }
                 if (idx >= 0) timerTasks[idx] = task.copy(enabled = enabled)
             },
-            onNavigate = { currentScreen = it }
+            onDeleteTask = { task ->
+                timerTasks.removeAll { it.id == task.id }
+                persist()
+            }
         )
     }
 }

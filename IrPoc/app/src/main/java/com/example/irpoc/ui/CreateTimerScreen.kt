@@ -58,13 +58,14 @@ import com.example.irpoc.model.label
 @Composable
 fun CreateTimerScreen(
     initialTask: AcTimerTask? = null,
+    defaultTemp: Int = 24,
     onBack: () -> Unit,
     onSave: (AcTimerTask) -> Unit,
 ) {
     var name by remember { mutableStateOf(initialTask?.name ?: "") }
     var hour by remember { mutableIntStateOf(initialTask?.hour ?: 7) }
     var minute by remember { mutableIntStateOf(initialTask?.minute ?: 30) }
-    var targetTemp by remember { mutableIntStateOf(initialTask?.targetTemp ?: 24) }
+    var targetTemp by remember { mutableIntStateOf(initialTask?.targetTemp ?: defaultTemp) }
     var repeatType by remember { mutableStateOf(initialTask?.repeatType ?: RepeatType.WORKDAY) }
 
     Scaffold(
