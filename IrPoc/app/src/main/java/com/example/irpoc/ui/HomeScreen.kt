@@ -23,8 +23,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.ViewModule
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -128,7 +128,7 @@ fun HomeScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
-                                imageVector = Icons.Outlined.Schedule,
+                                imageVector = Icons.Outlined.DateRange,
                                 contentDescription = null,
                                 tint = GrayText,
                                 modifier = Modifier.size(48.dp)
@@ -367,8 +367,8 @@ private fun BottomNavBar(
 ) {
     val items = listOf(
         Screen.Home to ("首页" to Icons.Outlined.Home),
-        Screen.Scene to ("场景" to Icons.Outlined.ViewModule),
-        Screen.Timer to ("定时" to Icons.Outlined.Schedule),
+        Screen.Scene to ("场景" to Icons.Outlined.Settings),
+        Screen.Timer to ("定时" to Icons.Outlined.DateRange),
         Screen.Profile to ("我的" to Icons.Outlined.Person),
     )
     Row(
