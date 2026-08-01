@@ -8,23 +8,34 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -133,33 +144,143 @@ fun IrPocScreen(context: Context) {
         }
 
         Divider()
-        Text("奥克斯空调", style = MaterialTheme.typography.titleMedium)
+        Text("奥克斯空调控制", style = MaterialTheme.typography.titleMedium)
 
-        Button(onClick = {
+        // ===== 状态变量 =====
+        var currentTemp by remember { mutableIntStateOf(26) }
+        var currentMode by remember { mutableIntStateOf(0x20) }
+        var currentFan by remember { mutableIntStateOf(0xA0) }
+        var timerTargetTemp by remember { mutableIntStateOf(28) }
+        var timerDelayMin by remember { mutableIntStateOf(30) }
+        var timerActive by remember { mutableStateOf(false) }
+        var timerRemainingSec by remember { mutableIntStateOf(0) }
+        val scope = rememberCoroutineScope()
+
+        val modeMap = listOf(0x20 to "制冷", 0x40 to "制热", 0x10 to "除湿", 0x00 to "自动")
+        val fanMap = listOf(0xA0 to "自动", 0x60 to "低风", 0x40 to "中风", 0x20 to "高风")
+
+        fun sendAc(powerOn: Boolean, temp: Int, mode: Int, fan: Int) {
             try {
-                val acData = auxAcData(powerOn = true, tempCelsius = 26, mode = 0x20, fanSpeed = 0xA0)
-                val pattern = bytesToNecPattern(acData)
+                val data = auxAcData(powerOn, temp, mode, fan)
+                val pattern = bytesToNecPattern(data)
                 irManager.transmit(38000, pattern)
-                log("AUX 开机: 26°C 制冷 自动风, ${pattern.size}段")
-                log("👉 对准空调红外接收窗")
+                val modeName = modeMap.find { it.first == mode }?.second ?: "?"
+                log("✅ AUX: ${if (powerOn) "开机" else "关机"} ${temp}°C $modeName")
             } catch (e: Exception) {
-                log("AUX 开机异常: ${e.javaClass.name}: ${e.message}")
+                log("❌ AUX 发送异常: ${e.message}")
             }
-        }) {
-            Text("AUX 开机 (26°C 制冷)")
         }
 
-        Button(onClick = {
-            try {
-                val acData = auxAcData(powerOn = false, tempCelsius = 26, mode = 0x20, fanSpeed = 0xA0)
-                val pattern = bytesToNecPattern(acData)
-                irManager.transmit(38000, pattern)
-                log("AUX 关机: 发送关机码, ${pattern.size}段")
-            } catch (e: Exception) {
-                log("AUX 关机异常: ${e.javaClass.name}: ${e.message}")
+        // ===== 温度调节 =====
+        Text("温度", style = MaterialTheme.typography.labelLarge)
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Button(onClick = { if (currentTemp > 16) currentTemp-- }) { Text("-") }
+            Spacer(Modifier.width(16.dp))
+            Text("${currentTemp}°C", style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.width(16.dp))
+            Button(onClick = { if (currentTemp < 31) currentTemp++ }) { Text("+") }
+        }
+
+        // ===== 模式选择 =====
+        Text("模式", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            modeMap.forEach { (code, label) ->
+                if (code == currentMode) {
+                    Button(onClick = { currentMode = code }) { Text(label) }
+                } else {
+                    OutlinedButton(onClick = { currentMode = code }) { Text(label) }
+                }
             }
-        }) {
-            Text("AUX 关机")
+        }
+
+        // ===== 风速选择 =====
+        Text("风速", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            fanMap.forEach { (code, label) ->
+                if (code == currentFan) {
+                    Button(onClick = { currentFan = code }) { Text(label) }
+                } else {
+                    OutlinedButton(onClick = { currentFan = code }) { Text(label) }
+                }
+            }
+        }
+
+        // ===== 立即调温 =====
+        Button(onClick = { sendAc(powerOn = true, currentTemp, currentMode, currentFan) }) {
+            Text("立即调温 → ${currentTemp}°C")
+        }
+
+        Spacer(Modifier.height(4.dp))
+        Divider()
+        Text("定时调温", style = MaterialTheme.typography.titleMedium)
+
+        // ===== 目标温度 =====
+        Text("目标温度", style = MaterialTheme.typography.labelLarge)
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Button(onClick = { if (timerTargetTemp > 16) timerTargetTemp-- }) { Text("-") }
+            Spacer(Modifier.width(16.dp))
+            Text("${timerTargetTemp}°C", style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.width(16.dp))
+            Button(onClick = { if (timerTargetTemp < 31) timerTargetTemp++ }) { Text("+") }
+        }
+
+        // ===== 延时选择 =====
+        Text("延时", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(15, 30, 60, 120).forEach { min ->
+                if (min == timerDelayMin) {
+                    Button(onClick = { timerDelayMin = min }) { Text("${min}分钟") }
+                } else {
+                    OutlinedButton(onClick = { timerDelayMin = min }) { Text("${min}分钟") }
+                }
+            }
+        }
+
+        // ===== 定时启动/取消 =====
+        if (timerActive) {
+            Button(
+                onClick = { timerActive = false },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("取消定时 (剩余 ${timerRemainingSec / 60}分${timerRemainingSec % 60}秒)")
+            }
+        } else {
+            Button(onClick = {
+                timerActive = true
+                timerRemainingSec = timerDelayMin * 60
+                scope.launch {
+                    log("⏰ 定时调温启动: $timerDelayMin 分钟后 → ${timerTargetTemp}°C")
+                    while (timerRemainingSec > 0 && timerActive) {
+                        delay(1000)
+                        timerRemainingSec--
+                    }
+                    if (timerActive) {
+                        sendAc(powerOn = true, timerTargetTemp, currentMode, currentFan)
+                        log("⏰ 定时调温执行: 已切换至 ${timerTargetTemp}°C")
+                        timerActive = false
+                    }
+                }
+            }) {
+                Text("启动定时 → ${timerTargetTemp}°C (${timerDelayMin}分钟后)")
+            }
+        }
+
+        // ===== 快捷开关 =====
+        Spacer(Modifier.height(4.dp))
+        Divider()
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = {
+                sendAc(powerOn = true, currentTemp, currentMode, currentFan)
+            }) {
+                Text("开机 ${currentTemp}°C")
+            }
+            Button(onClick = {
+                sendAc(powerOn = false, currentTemp, currentMode, currentFan)
+            }) {
+                Text("关机")
+            }
         }
 
         Spacer(modifier = Modifier.height(4.dp))
