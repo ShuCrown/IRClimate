@@ -1,11 +1,19 @@
 package com.example.irpoc
 
+import android.Manifest
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.hardware.ConsumerIrManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,12 +23,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,27 +40,31 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted) {
+            Log.w("IrPoc", "通知权限被拒绝，定时任务仍可运行但无通知")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    IrPocScreen(this)
+                    IrPocScreen(this, requestPermissionLauncher)
                 }
             }
         }
@@ -58,7 +72,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun IrPocScreen(context: Context) {
+fun IrPocScreen(context: Context, permissionLauncher: ActivityResultLauncher<String>) {
     val logs = remember { mutableStateListOf<String>() }
     val scrollState = rememberScrollState()
 
@@ -160,7 +174,45 @@ fun IrPocScreen(context: Context) {
         var timerRemainingSec by remember { mutableIntStateOf(0) }
         var isCustomDelay by remember { mutableStateOf(false) }
         var customDelayInput by remember { mutableStateOf("") }
-        val scope = rememberCoroutineScope()
+
+        // 监听 Service 广播
+        val timerReceiver = remember {
+            object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
+                    val status = intent?.getStringExtra(AcTimerService.EXTRA_STATUS) ?: return
+                    when (status) {
+                        "started" -> {
+                            timerActive = true
+                            timerRemainingSec = intent.getIntExtra(AcTimerService.EXTRA_REMAINING, 0)
+                            log("⏰ 后台定时调温已启动")
+                        }
+                        "running" -> {
+                            timerRemainingSec = intent.getIntExtra(AcTimerService.EXTRA_REMAINING, 0)
+                        }
+                        "done" -> {
+                            timerActive = false
+                            timerRemainingSec = 0
+                            log("✅ 后台定时调温执行完毕")
+                        }
+                        "cancelled" -> {
+                            timerActive = false
+                            timerRemainingSec = 0
+                            log("⏹ 后台定时调温已取消")
+                        }
+                    }
+                }
+            }
+        }
+
+        // 注册/注销广播接收器
+        LaunchedEffect(Unit) {
+            val filter = IntentFilter(AcTimerService.ACTION_TICK)
+            context.registerReceiver(timerReceiver, filter, Context.RECEIVER_EXPORTED)
+        }
+        // 利用 DisposableEffect 在 composable 离开时注销
+        androidx.compose.runtime.DisposableEffect(Unit) {
+            onDispose { context.unregisterReceiver(timerReceiver) }
+        }
 
         val modeMap = listOf(0x20 to "制冷", 0x40 to "制热", 0x10 to "除湿", 0x00 to "自动")
         val fanMap = listOf(0xA0 to "自动", 0x60 to "低风", 0x40 to "中风", 0x20 to "高风")
@@ -276,7 +328,9 @@ fun IrPocScreen(context: Context) {
         // ===== 定时启动/取消 =====
         if (timerActive) {
             Button(
-                onClick = { timerActive = false },
+                onClick = {
+                    context.stopService(AcTimerService.cancelIntent(context))
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error
                 )
@@ -285,20 +339,19 @@ fun IrPocScreen(context: Context) {
             }
         } else {
             Button(onClick = {
-                timerActive = true
-                timerRemainingSec = timerDelayMin * 60
-                scope.launch {
-                    log("⏰ 定时调温启动: $timerDelayMin 分钟后 → ${timerTargetTemp}°C")
-                    while (timerRemainingSec > 0 && timerActive) {
-                        delay(1000)
-                        timerRemainingSec--
-                    }
-                    if (timerActive) {
-                        sendAc(powerOn = true, timerTargetTemp, currentMode, currentFan)
-                        log("⏰ 定时调温执行: 已切换至 ${timerTargetTemp}°C")
-                        timerActive = false
+                // Android 13+ 请求通知权限
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     }
                 }
+                val intent = AcTimerService.startIntent(
+                    context, timerDelayMin, timerTargetTemp, currentMode, currentFan
+                )
+                ContextCompat.startForegroundService(context, intent)
+                log("⏰ 启动后台定时: $timerDelayMin 分钟后 → ${timerTargetTemp}°C")
             }) {
                 Text("启动定时 → ${timerTargetTemp}°C (${timerDelayMin}分钟后)")
             }
