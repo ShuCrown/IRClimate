@@ -65,6 +65,7 @@ fun HomeScreen(
     timerTasks: List<AcTimerTask>,
     timerEvents: List<TimerEvent> = emptyList(),
     remainingSec: Int = 0,
+    onMarkAllRead: () -> Unit = {},
     onPowerClick: () -> Unit,
     onAddTimer: () -> Unit,
     onTaskToggle: (AcTimerTask, Boolean) -> Unit,
@@ -211,7 +212,11 @@ fun HomeScreen(
     if (showMessageSheet) {
         MessageBottomSheet(
             events = timerEvents,
-            onDismiss = { showMessageSheet = false }
+            onDismiss = { showMessageSheet = false },
+            onMarkAllRead = {
+                onMarkAllRead()
+                unreadCount = 0
+            }
         )
     }
 }

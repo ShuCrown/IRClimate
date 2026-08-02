@@ -1,5 +1,7 @@
 package com.example.irpoc.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,8 +21,14 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,9 +42,17 @@ import androidx.compose.material.icons.filled.Notifications
 fun MessageBottomSheet(
     events: List<TimerEvent>,
     onDismiss: () -> Unit,
+    onMarkAllRead: () -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val maxSheetHeight = (LocalConfiguration.current.screenHeightDp * 0.9f).dp
+
+    var tab by remember { mutableStateOf(0) } // 0=未读, 1=全部
+    val unreadCount = events.count { !it.read }
+    val displayEvents = remember(events, tab) {
+        val sorted = events.sortedByDescending { it.timestamp }
+        if (tab == 0) sorted.filter { !it.read } else sorted
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -49,7 +65,7 @@ fun MessageBottomSheet(
                 .fillMaxWidth()
                 .heightIn(max = maxSheetHeight)
         ) {
-            // 标题
+            // 标题 + 全部已读
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -72,21 +88,51 @@ fun MessageBottomSheet(
                         color = DarkText
                     )
                 }
-                Text(
-                    "共${events.size}条",
-                    fontSize = 14.sp,
-                    color = GrayText
+                if (unreadCount > 0) {
+                    Text(
+                        "全部已读",
+                        fontSize = 14.sp,
+                        color = Teal,
+                        modifier = Modifier.clickable { onMarkAllRead() }
+                    )
+                }
+            }
+
+            // Tab：未读 / 全部
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MessageTab(
+                    text = "未读",
+                    count = unreadCount,
+                    selected = tab == 0,
+                    onClick = { tab = 0 }
+                )
+                MessageTab(
+                    text = "全部",
+                    count = events.size,
+                    selected = tab == 1,
+                    onClick = { tab = 1 }
                 )
             }
 
-            if (events.isEmpty()) {
+            Spacer(Modifier.height(8.dp))
+
+            if (displayEvents.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 48.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("暂无消息", color = GrayText, fontSize = 14.sp)
+                    Text(
+                        if (tab == 0) "暂无未读消息" else "暂无消息",
+                        color = GrayText,
+                        fontSize = 14.sp
+                    )
                 }
             } else {
                 LazyColumn(
@@ -95,15 +141,35 @@ fun MessageBottomSheet(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(
-                        events.sortedByDescending { it.timestamp },
-                        key = { it.id }
-                    ) { event ->
+                    items(displayEvents, key = { it.id }) { event ->
                         TimerEventItem(event = event)
                     }
                     item { Spacer(Modifier.height(16.dp)) }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MessageTab(
+    text: String,
+    count: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) Teal else Color(0xFFF2F2F2))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Text(
+            "$text $count",
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) Color.White else GrayText
+        )
     }
 }
