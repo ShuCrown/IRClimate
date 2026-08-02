@@ -179,8 +179,7 @@ fun CreateTimerScreen(
                             onValueChange = {
                                 minute = it.coerceIn(0, 59)
                             },
-                            modifier = Modifier.width(80.dp),
-                            underline = true
+                            modifier = Modifier.width(80.dp)
                         )
                     }
 
@@ -317,7 +316,6 @@ private fun TimeDigitField(
     value: Int,
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    underline: Boolean = false
 ) {
     OutlinedTextField(
         value = value.toString().padStart(2, '0'),
@@ -341,10 +339,10 @@ private fun TimeDigitField(
         singleLine = true,
         shape = RoundedCornerShape(0.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = Color.Transparent,
-            unfocusedContainerColor = Color.Transparent,
-            focusedBorderColor = if (underline) Teal else Color.Transparent,
-            unfocusedBorderColor = if (underline) Teal else Color.Transparent,
+            focusedContainerColor = TealLight,
+            unfocusedContainerColor = Color.White,
+            focusedBorderColor = Teal,
+            unfocusedBorderColor = Teal.copy(alpha = 0.3f),
         )
     )
 }
