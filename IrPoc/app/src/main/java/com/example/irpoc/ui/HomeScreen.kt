@@ -36,9 +36,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -74,14 +72,7 @@ fun HomeScreen(
 ) {
     var taskToDelete by remember { mutableStateOf<AcTimerTask?>(null) }
     var showMessageSheet by remember { mutableStateOf(false) }
-    var unreadCount by remember { mutableIntStateOf(0) }
-    var lastEventSize by remember { mutableIntStateOf(timerEvents.size) }
-    LaunchedEffect(timerEvents.size) {
-        if (timerEvents.size > lastEventSize) {
-            unreadCount += timerEvents.size - lastEventSize
-        }
-        lastEventSize = timerEvents.size
-    }
+    val unreadCount = remember(timerEvents) { timerEvents.count { !it.read } }
 
     // 删除确认对话框
     taskToDelete?.let { task ->
@@ -112,10 +103,7 @@ fun HomeScreen(
         topBar = {
             HomeTopBar(
                 unreadCount = unreadCount,
-                onBellClick = {
-                    unreadCount = 0
-                    showMessageSheet = true
-                }
+                onBellClick = { showMessageSheet = true }
             )
         },
         floatingActionButton = {
@@ -213,10 +201,7 @@ fun HomeScreen(
         MessageBottomSheet(
             events = timerEvents,
             onDismiss = { showMessageSheet = false },
-            onMarkAllRead = {
-                onMarkAllRead()
-                unreadCount = 0
-            }
+            onMarkAllRead = onMarkAllRead
         )
     }
 }

@@ -234,6 +234,13 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         timerTasks = timerTasks,
         timerEvents = timerEvents,
         remainingSec = timerRemainingSec,
+        onMarkAllRead = {
+            for (i in timerEvents.indices) {
+                if (!timerEvents[i].read) {
+                    timerEvents[i] = timerEvents[i].copy(read = true)
+                }
+            }
+        },
         onPowerClick = {
             isPowerOn = !isPowerOn
             sendAc(isPowerOn, targetTemp, currentMode, currentFan)
