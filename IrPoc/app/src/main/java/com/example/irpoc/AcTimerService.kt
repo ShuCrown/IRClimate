@@ -23,6 +23,9 @@ class AcTimerService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var irManager: ConsumerIrManager? = null
     private var timerJob: Job? = null
+    private var lastTargetTemp = 0
+    private var lastMode = 0
+    private var lastFan = 0
 
     // ── Intent actions / extras ──────────────────────────────
     companion object {
@@ -91,6 +94,9 @@ class AcTimerService : Service() {
     // ── Timer logic ──────────────────────────────────────────
     private fun startTimer(delayMin: Int, targetTemp: Int, mode: Int, fan: Int) {
         timerJob?.cancel()
+        lastTargetTemp = targetTemp
+        lastMode = mode
+        lastFan = fan
         val totalSec = delayMin * 60
 
         // 前台通知
@@ -126,8 +132,8 @@ class AcTimerService : Service() {
                 Log.e("AcTimerService", "IR 发射失败: ${e.message}")
             }
 
-            // 广播：完成
-            broadcastTick("done", 0)
+            // 广播：完成（携带最终下发状态）
+            broadcastTick("done", 0, lastTargetTemp, lastMode, lastFan)
             // 延迟一会儿再关，让用户看到通知
             delay(2000)
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -143,10 +149,21 @@ class AcTimerService : Service() {
         stopSelf()
     }
 
-    private fun broadcastTick(status: String, remaining: Int) {
+    private fun broadcastTick(
+        status: String,
+        remaining: Int,
+        targetTemp: Int = 0,
+        mode: Int = 0,
+        fan: Int = 0,
+    ) {
         sendBroadcast(Intent(ACTION_TICK).apply {
             putExtra(EXTRA_STATUS, status)
             putExtra(EXTRA_REMAINING, remaining)
+            if (status == "done") {
+                putExtra(EXTRA_TARGET_TEMP, targetTemp)
+                putExtra(EXTRA_MODE, mode)
+                putExtra(EXTRA_FAN, fan)
+            }
         })
     }
 

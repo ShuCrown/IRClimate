@@ -54,11 +54,9 @@ import com.example.irpoc.model.timeText
 
 @Composable
 fun HomeScreen(
-    currentTemp: Int,
     targetTemp: Int,
     modeName: String,
     fanName: String,
-    runHours: Int,
     isPowerOn: Boolean,
     timerTasks: List<AcTimerTask>,
     timerEvents: List<TimerEvent> = emptyList(),
@@ -129,11 +127,9 @@ fun HomeScreen(
 
             item {
                 AcStatusCard(
-                    currentTemp = currentTemp,
                     targetTemp = targetTemp,
                     modeName = modeName,
                     fanName = fanName,
-                    runHours = runHours,
                     isPowerOn = isPowerOn,
                     onPowerClick = onPowerClick
                 )
@@ -246,11 +242,9 @@ private fun HomeTopBar(
 
 @Composable
 private fun AcStatusCard(
-    currentTemp: Int,
     targetTemp: Int,
     modeName: String,
     fanName: String,
-    runHours: Int,
     isPowerOn: Boolean,
     onPowerClick: () -> Unit,
 ) {
@@ -293,11 +287,6 @@ private fun AcStatusCard(
                             fontSize = 14.sp,
                             color = GrayText
                         )
-                        Text(
-                            "已运行 ${runHours} 小时",
-                            fontSize = 12.sp,
-                            color = LightGrayText
-                        )
                     }
                 }
                 IconButton(
@@ -333,7 +322,7 @@ private fun AcStatusCard(
                         .height(36.dp)
                         .background(DividerGray)
                 )
-                TempInfoColumn(label = "当前", value = "${currentTemp}°C")
+                TempInfoColumn(label = "模式", value = modeName)
                 Box(
                     modifier = Modifier
                         .width(1.dp)
