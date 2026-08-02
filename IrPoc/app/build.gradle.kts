@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
-// ── 版本号自动递增 ──────────────────────────────────────────
+// ── 版本号自动递增（配置阶段执行）────────────────────────────
 val versionFile = rootProject.file("version.properties")
 
 fun readVersionCode(): Int {
@@ -39,29 +39,14 @@ fun incrementVersionName(vn: String): String {
     return parts.joinToString(".")
 }
 
-var currentVersionCode = readVersionCode()
-var currentVersionName = readVersionName()
+// 在配置阶段直接读取旧值、递增、写回，确保 defaultConfig 拿到最新值
+val oldVersionCode = readVersionCode()
+val oldVersionName = readVersionName()
+val newVersionCode = oldVersionCode + 1
+val newVersionName = incrementVersionName(oldVersionName)
+writeVersion(newVersionCode, newVersionName)
 
-val incrementVersionTask = tasks.register("incrementVersion") {
-    doLast {
-        val vc = readVersionCode() + 1
-        val vn = readVersionName()
-        val newVn = incrementVersionName(vn)
-
-        writeVersion(vc, newVn)
-
-        // 更新当前构建的值
-        currentVersionCode = vc
-        currentVersionName = newVn
-
-        println("📦 Version bumped: $vn → $newVn (code $vc)")
-    }
-}
-
-// 在 preBuild 之前执行版本递增，确保 versionCode/versionName 是最新的
-tasks.named("preBuild") {
-    dependsOn(incrementVersionTask)
-}
+println("📦 Version bumped: $oldVersionName → $newVersionName (code $newVersionCode)")
 
 android {
     namespace = "com.example.irpoc"
@@ -71,8 +56,8 @@ android {
         applicationId = "com.example.irpoc"
         minSdk = 24
         targetSdk = 34
-        versionCode = currentVersionCode
-        versionName = currentVersionName
+        versionCode = newVersionCode
+        versionName = newVersionName
     }
 
     buildTypes {
