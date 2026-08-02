@@ -393,7 +393,10 @@ private fun TimerTaskItem(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
                     task.timeText(),
                     fontSize = 28.sp,
@@ -406,21 +409,29 @@ private fun TimerTaskItem(
                         task.name,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = DarkText
+                        color = DarkText,
+                        maxLines = 1
                     )
                     Spacer(Modifier.height(4.dp))
                     if (task.enabled && remainingSec > 0) {
-                        val m = (remainingSec + 59) / 60
+                        val totalMin = (remainingSec + 59) / 60
+                        val remainText = if (totalMin >= 60) {
+                            "剩余 ${totalMin / 60} 小时"
+                        } else {
+                            "剩余 ${totalMin} 分钟"
+                        }
                         Text(
-                            "剩余 ${m}分钟 · ${task.targetTemp}°C · ${task.repeatType.label()}",
+                            "$remainText · ${task.targetTemp}°C · ${task.repeatType.label()}",
                             fontSize = 13.sp,
-                            color = Teal
+                            color = Teal,
+                            maxLines = 1
                         )
                     } else {
                         Text(
                             "${task.targetTemp}°C · ${task.repeatType.label()}",
                             fontSize = 13.sp,
-                            color = GrayText
+                            color = GrayText,
+                            maxLines = 1
                         )
                     }
                 }
