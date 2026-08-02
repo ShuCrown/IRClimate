@@ -366,15 +366,16 @@ fun auxAcData(
     val tempVal = (tempCelsius - 8).coerceIn(0, 31)
     val byte2 = ((tempVal shl 3) or 0b101).toByte()
     val byte3 = (if (swingH) 0xE0 else 0x00).toByte()
-    // byte5: 风扇速度位
-    val byte5 = (if (quiet) 0x80 else 0x00).toByte()
+    // byte7: 模式 + 睡眠
     val byte7 = (mode or (if (sleep) 0x04 else 0x00)).toByte()
+    // byte8: 静音（原未使用的字节）
+    val byte8 = (if (quiet) 0x08 else 0x00).toByte()
     val byte10 = ((if (powerOn) 0x20 else 0x00) or (if (eco) 0x08 else 0x00)).toByte()
     val byte12 = 0x45.toByte()
 
     val header = byteArrayOf(
-        0xC3.toByte(), byte2, byte3, 0x00, byte5, 0x00,
-        byte7, 0x00, 0x00, byte10, 0x00, byte12
+        0xC3.toByte(), byte2, byte3, 0x00, fanSpeed.toByte(), 0x00,
+        byte7, byte8, 0x00, byte10, 0x00, byte12
     )
     val checksum = (header.sumOf { it.toInt() and 0xFF } and 0xFF).toByte()
     return header + checksum
