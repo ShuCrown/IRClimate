@@ -29,6 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.example.irpoc.model.AcTimerTask
+import com.example.irpoc.model.EventType
+import com.example.irpoc.model.TimerEvent
 import com.example.irpoc.ui.CreateTimerScreen
 import com.example.irpoc.ui.HomeScreen
 import com.example.irpoc.ui.Screen
@@ -76,6 +78,15 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
     // 定时任务列表（从持久化加载）
     val timerTasks = remember {
         mutableStateListOf<AcTimerTask>().apply { addAll(storage.loadTasks()) }
+    }
+
+    // 事件消息列表
+    val timerEvents = remember { mutableStateListOf<TimerEvent>() }
+    fun addEvent(type: EventType, taskName: String, detail: String = "") {
+        timerEvents.add(0, TimerEvent(type = type, taskName = taskName, detail = detail))
+        if (timerEvents.size > 100) {
+            timerEvents.removeRange(50, timerEvents.size)
+        }
     }
 
     // 每次列表变化时自动持久化
@@ -142,11 +153,22 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                     "started" -> {
                         timerActive = true
                         timerRemainingSec = intent.getIntExtra(AcTimerService.EXTRA_REMAINING, 0)
+                        // 查找当前启用的任务作为事件来源
+                        val taskName = timerTasks.find { it.enabled }?.name ?: "定时调温"
+                        addEvent(EventType.TASK_PUBLISHED, taskName, "后台倒计时 ${timerRemainingSec / 60} 分钟")
                     }
                     "running" -> timerRemainingSec = intent.getIntExtra(AcTimerService.EXTRA_REMAINING, 0)
-                    "done", "cancelled" -> {
+                    "done" -> {
                         timerActive = false
                         timerRemainingSec = 0
+                        val taskName = timerTasks.find { it.enabled }?.name ?: "定时调温"
+                        addEvent(EventType.TASK_EXECUTED, taskName, "已调至目标温度")
+                    }
+                    "cancelled" -> {
+                        timerActive = false
+                        timerRemainingSec = 0
+                        val taskName = timerTasks.find { it.enabled }?.name ?: "定时调温"
+                        addEvent(EventType.TASK_CANCELLED, taskName, "用户取消")
                     }
                 }
             }
@@ -170,6 +192,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
             runHours = runHours,
             isPowerOn = isPowerOn,
             timerTasks = timerTasks,
+            timerEvents = timerEvents,
             onPowerClick = {
                 isPowerOn = !isPowerOn
                 sendAc(isPowerOn, targetTemp, currentMode, currentFan)
@@ -189,8 +212,10 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             }
                         }
+                        addEvent(EventType.TASK_PUBLISHED, task.name, "后台倒计时中")
                         startTimerTask(updated)
                     } else {
+                        addEvent(EventType.TASK_CANCELLED, task.name, "用户关闭")
                         context.stopService(AcTimerService.cancelIntent(context))
                     }
                 }
@@ -198,6 +223,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
             onDeleteTask = { task ->
                 timerTasks.removeAll { it.id == task.id }
                 persist()
+                addEvent(EventType.TASK_CANCELLED, task.name, "已删除")
                 context.stopService(AcTimerService.cancelIntent(context))
                 log("🗑 删除定时: ${task.name}")
             }
@@ -208,6 +234,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
             onSave = { task ->
                 timerTasks.add(task)
                 persist()
+                addEvent(EventType.TASK_CREATED, task.name, "${task.hour.toString().padStart(2,'0')}:${task.minute.toString().padStart(2,'0')} → ${task.targetTemp}°C")
                 currentScreen = Screen.Home
                 if (task.enabled) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -217,6 +244,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     }
+                    addEvent(EventType.TASK_PUBLISHED, task.name, "后台倒计时中")
                     startTimerTask(task)
                 }
             }
@@ -229,6 +257,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
             runHours = runHours,
             isPowerOn = isPowerOn,
             timerTasks = timerTasks,
+            timerEvents = timerEvents,
             onPowerClick = {
                 isPowerOn = !isPowerOn
                 sendAc(isPowerOn, targetTemp, currentMode, currentFan)
@@ -236,11 +265,21 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
             onAddTimer = { currentScreen = Screen.Timer },
             onTaskToggle = { task, enabled ->
                 val idx = timerTasks.indexOfFirst { it.id == task.id }
-                if (idx >= 0) timerTasks[idx] = task.copy(enabled = enabled)
+                if (idx >= 0) {
+                    val updated = task.copy(enabled = enabled)
+                    timerTasks[idx] = updated
+                    persist()
+                    if (enabled) {
+                        addEvent(EventType.TASK_PUBLISHED, task.name, "后台倒计时中")
+                    } else {
+                        addEvent(EventType.TASK_CANCELLED, task.name, "用户关闭")
+                    }
+                }
             },
             onDeleteTask = { task ->
                 timerTasks.removeAll { it.id == task.id }
                 persist()
+                addEvent(EventType.TASK_CANCELLED, task.name, "已删除")
             }
         )
     }

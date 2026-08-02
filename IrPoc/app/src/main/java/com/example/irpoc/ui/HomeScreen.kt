@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.irpoc.model.AcTimerTask
+import com.example.irpoc.model.TimerEvent
 import com.example.irpoc.model.label
 import com.example.irpoc.model.timeText
 
@@ -51,6 +52,7 @@ fun HomeScreen(
     runHours: Int,
     isPowerOn: Boolean,
     timerTasks: List<AcTimerTask>,
+    timerEvents: List<TimerEvent> = emptyList(),
     onPowerClick: () -> Unit,
     onAddTimer: () -> Unit,
     onTaskToggle: (AcTimerTask, Boolean) -> Unit,
@@ -139,6 +141,33 @@ fun HomeScreen(
                         onToggle = { onTaskToggle(task, it) },
                         onDelete = { onDeleteTask(task) }
                     )
+                }
+            }
+
+            if (timerEvents.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "消息",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = DarkText
+                        )
+                        Text(
+                            "共${timerEvents.size}条",
+                            fontSize = 14.sp,
+                            color = GrayText
+                        )
+                    }
+                }
+                items(timerEvents.sortedByDescending { it.timestamp }.take(20), key = { it.id }) { event ->
+                    TimerEventItem(event = event)
                 }
             }
 
