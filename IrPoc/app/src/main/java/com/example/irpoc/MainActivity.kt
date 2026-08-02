@@ -233,6 +233,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         isPowerOn = isPowerOn,
         timerTasks = timerTasks,
         timerEvents = timerEvents,
+        remainingSec = timerRemainingSec,
         onPowerClick = {
             isPowerOn = !isPowerOn
             sendAc(isPowerOn, targetTemp, currentMode, currentFan)

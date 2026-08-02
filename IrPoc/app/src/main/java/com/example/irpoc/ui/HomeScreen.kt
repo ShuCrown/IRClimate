@@ -64,6 +64,7 @@ fun HomeScreen(
     isPowerOn: Boolean,
     timerTasks: List<AcTimerTask>,
     timerEvents: List<TimerEvent> = emptyList(),
+    remainingSec: Int = 0,
     onPowerClick: () -> Unit,
     onAddTimer: () -> Unit,
     onTaskToggle: (AcTimerTask, Boolean) -> Unit,
@@ -194,6 +195,7 @@ fun HomeScreen(
                 items(timerTasks, key = { it.id }) { task ->
                     TimerTaskItem(
                         task = task,
+                        remainingSec = if (task.enabled) remainingSec else 0,
                         onToggle = { onTaskToggle(task, it) },
                         onEdit = { onEditTask(task) },
                         onDelete = { taskToDelete = task }
@@ -371,6 +373,7 @@ private fun TempInfoColumn(label: String, value: String) {
 @Composable
 private fun TimerTaskItem(
     task: AcTimerTask,
+    remainingSec: Int = 0,
     onToggle: (Boolean) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -406,11 +409,21 @@ private fun TimerTaskItem(
                         color = DarkText
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        "${task.targetTemp}°C · ${task.repeatType.label()}",
-                        fontSize = 13.sp,
-                        color = GrayText
-                    )
+                    if (task.enabled && remainingSec > 0) {
+                        val m = remainingSec / 60
+                        val s = remainingSec % 60
+                        Text(
+                            "剩余 ${m}分${s.toString().padStart(2, '0')}秒 · ${task.targetTemp}°C · ${task.repeatType.label()}",
+                            fontSize = 13.sp,
+                            color = Teal
+                        )
+                    } else {
+                        Text(
+                            "${task.targetTemp}°C · ${task.repeatType.label()}",
+                            fontSize = 13.sp,
+                            color = GrayText
+                        )
+                    }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
