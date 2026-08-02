@@ -337,12 +337,13 @@ private fun TimeDigitField(
         ),
         keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
         singleLine = true,
-        shape = RoundedCornerShape(0.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = TealLight,
             unfocusedContainerColor = Color.White,
             focusedBorderColor = Teal,
-            unfocusedBorderColor = Teal.copy(alpha = 0.3f),
+            unfocusedBorderColor = Teal.copy(alpha = 0.5f),
+            cursorColor = Teal,
         )
     )
 }
