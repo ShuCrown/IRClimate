@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,23 +16,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -46,7 +40,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,92 +49,43 @@ import com.example.irpoc.model.label
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateTimerScreen(
+fun TimerBottomSheet(
     initialTask: AcTimerTask? = null,
     defaultTemp: Int = 24,
-    onBack: () -> Unit,
+    onDismiss: () -> Unit,
     onSave: (AcTimerTask) -> Unit,
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
     var name by remember { mutableStateOf(initialTask?.name ?: "") }
     var hour by remember { mutableIntStateOf(initialTask?.hour ?: 7) }
     var minute by remember { mutableIntStateOf(initialTask?.minute ?: 30) }
     var targetTemp by remember { mutableIntStateOf(initialTask?.targetTemp ?: defaultTemp) }
     var repeatType by remember { mutableStateOf(initialTask?.repeatType ?: RepeatType.WORKDAY) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "新建定时",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = DarkText
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = DarkText
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { }) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "更多",
-                            tint = DarkText
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = BgGray)
-            )
-        },
-        bottomBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(BgGray)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Button(
-                    onClick = {
-                        onSave(
-                            AcTimerTask(
-                                name = name.ifBlank { "定时调温" },
-                                hour = hour,
-                                minute = minute,
-                                targetTemp = targetTemp,
-                                repeatType = repeatType
-                            )
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Teal)
-                ) {
-                    Text("保存定时", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    ) { padding ->
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = BgGray,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+    ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(BgGray)
+                .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(Modifier.height(8.dp))
+            // 标题
+            Text(
+                if (initialTask != null) "编辑定时" else "新建定时",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = DarkText,
+                modifier = Modifier.padding(top = 4.dp)
+            )
 
-            // 执行时间卡片
+            // 名称
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -149,11 +93,34 @@ fun CreateTimerScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        "执行时间",
-                        fontSize = 14.sp,
-                        color = GrayText
+                    Text("名称", fontSize = 14.sp, color = GrayText)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("定时调温") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                            focusedBorderColor = Teal,
+                            unfocusedBorderColor = Teal.copy(alpha = 0.3f),
+                        )
                     )
+                }
+            }
+
+            // 执行时间
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("执行时间", fontSize = 14.sp, color = GrayText)
                     Spacer(Modifier.height(12.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -162,9 +129,7 @@ fun CreateTimerScreen(
                     ) {
                         TimeDigitField(
                             value = hour,
-                            onValueChange = {
-                                hour = it.coerceIn(0, 23)
-                            },
+                            onValueChange = { hour = it.coerceIn(0, 23) },
                             modifier = Modifier.width(80.dp)
                         )
                         Text(
@@ -176,43 +141,14 @@ fun CreateTimerScreen(
                         )
                         TimeDigitField(
                             value = minute,
-                            onValueChange = {
-                                minute = it.coerceIn(0, 59)
-                            },
-                            modifier = Modifier.width(80.dp),
-                            underline = true
+                            onValueChange = { minute = it.coerceIn(0, 59) },
+                            modifier = Modifier.width(80.dp)
                         )
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("日期", fontSize = 15.sp, color = DarkText)
-                        Text(
-                            repeatType.label() + " >",
-                            fontSize = 15.sp,
-                            color = GrayText
-                        )
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("提前提醒", fontSize = 15.sp, color = DarkText)
-                        Text("关闭 >", fontSize = 15.sp, color = GrayText)
                     }
                 }
             }
 
-            // 温度卡片
+            // 温度
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -220,9 +156,7 @@ fun CreateTimerScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -270,15 +204,11 @@ fun CreateTimerScreen(
                         )
                     }
                     Spacer(Modifier.height(16.dp))
-                    Text(
-                        "16°C - 30°C",
-                        fontSize = 13.sp,
-                        color = GrayText
-                    )
+                    Text("16°C - 30°C", fontSize = 13.sp, color = GrayText)
                 }
             }
 
-            // 重复卡片
+            // 重复
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -286,11 +216,7 @@ fun CreateTimerScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        "重复",
-                        fontSize = 14.sp,
-                        color = GrayText
-                    )
+                    Text("重复", fontSize = 14.sp, color = GrayText)
                     Spacer(Modifier.height(12.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -307,7 +233,31 @@ fun CreateTimerScreen(
                 }
             }
 
-            Spacer(Modifier.height(80.dp))
+            // 保存按钮
+            Button(
+                onClick = {
+                    onSave(
+                        AcTimerTask(
+                            name = name.ifBlank { "定时调温" },
+                            hour = hour,
+                            minute = minute,
+                            targetTemp = targetTemp,
+                            repeatType = repeatType
+                        )
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Teal)
+            ) {
+                Text(
+                    if (initialTask != null) "保存修改" else "保存定时",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
@@ -317,7 +267,6 @@ private fun TimeDigitField(
     value: Int,
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    underline: Boolean = false
 ) {
     OutlinedTextField(
         value = value.toString().padStart(2, '0'),
@@ -339,12 +288,13 @@ private fun TimeDigitField(
         ),
         keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
         singleLine = true,
-        shape = RoundedCornerShape(0.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = Color.Transparent,
-            unfocusedContainerColor = Color.Transparent,
-            focusedBorderColor = if (underline) Teal else Color.Transparent,
-            unfocusedBorderColor = if (underline) Teal else Color.Transparent,
+            focusedContainerColor = TealLight,
+            unfocusedContainerColor = BgGray,
+            focusedBorderColor = Teal,
+            unfocusedBorderColor = Teal,
+            cursorColor = Teal,
         )
     )
 }

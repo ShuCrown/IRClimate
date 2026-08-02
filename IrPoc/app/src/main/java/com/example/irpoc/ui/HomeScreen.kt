@@ -1,6 +1,7 @@
 package com.example.irpoc.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -30,7 +32,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.irpoc.model.AcTimerTask
+import com.example.irpoc.model.TimerEvent
 import com.example.irpoc.model.label
 import com.example.irpoc.model.timeText
 
@@ -51,11 +59,40 @@ fun HomeScreen(
     runHours: Int,
     isPowerOn: Boolean,
     timerTasks: List<AcTimerTask>,
+    timerEvents: List<TimerEvent> = emptyList(),
     onPowerClick: () -> Unit,
     onAddTimer: () -> Unit,
     onTaskToggle: (AcTimerTask, Boolean) -> Unit,
+    onEditTask: (AcTimerTask) -> Unit,
     onDeleteTask: (AcTimerTask) -> Unit,
 ) {
+    var taskToDelete by remember { mutableStateOf<AcTimerTask?>(null) }
+
+    // 删除确认对话框
+    taskToDelete?.let { task ->
+        AlertDialog(
+            onDismissRequest = { taskToDelete = null },
+            title = { Text("删除定时", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("确定要删除「${task.name}」(${task.timeText()}) 吗？\n此操作不可撤销。")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteTask(task)
+                        taskToDelete = null
+                    }
+                ) {
+                    Text("删除", color = Color(0xFFE53935))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { taskToDelete = null }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
     Scaffold(
         topBar = { HomeTopBar() },
         floatingActionButton = {
@@ -137,8 +174,36 @@ fun HomeScreen(
                     TimerTaskItem(
                         task = task,
                         onToggle = { onTaskToggle(task, it) },
-                        onDelete = { onDeleteTask(task) }
+                        onEdit = { onEditTask(task) },
+                        onDelete = { taskToDelete = task }
                     )
+                }
+            }
+
+            if (timerEvents.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "消息",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = DarkText
+                        )
+                        Text(
+                            "共${timerEvents.size}条",
+                            fontSize = 14.sp,
+                            color = GrayText
+                        )
+                    }
+                }
+                items(timerEvents.sortedByDescending { it.timestamp }.take(20), key = { it.id }) { event ->
+                    TimerEventItem(event = event)
                 }
             }
 
@@ -296,10 +361,13 @@ private fun TempInfoColumn(label: String, value: String) {
 private fun TimerTaskItem(
     task: AcTimerTask,
     onToggle: (Boolean) -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
