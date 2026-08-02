@@ -15,8 +15,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
 import com.example.irpoc.model.AcTimerTask
 import com.example.irpoc.model.EventType
@@ -184,6 +188,42 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
     }
     DisposableEffect(Unit) {
         onDispose { context.unregisterReceiver(timerReceiver) }
+    }
+
+    // ── 自动更新检测 ──────────────────────────────────────
+    val updater = remember { AppUpdater(context) }
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+
+    LaunchedEffect(Unit) {
+        updateInfo = updater.checkUpdate()
+    }
+
+    updateInfo?.let { update ->
+        AlertDialog(
+            onDismissRequest = {
+                updater.dismissVersion(update.versionName)
+                updateInfo = null
+            },
+            title = { Text("发现新版本", fontWeight = FontWeight.Bold) },
+            text = { Text(update.releaseNotes) },
+            confirmButton = {
+                TextButton(onClick = {
+                    updater.downloadAndInstall(update)
+                    updater.dismissVersion(update.versionName)
+                    updateInfo = null
+                }) {
+                    Text("立即更新")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    updater.dismissVersion(update.versionName)
+                    updateInfo = null
+                }) {
+                    Text("稍后再说")
+                }
+            }
+        )
     }
 
     when (currentScreen) {
