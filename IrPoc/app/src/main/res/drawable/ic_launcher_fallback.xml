@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 背景 -->
+    <path
+        android:fillColor="#0A9B9B"
+        android:pathData="M0,0h108v108h-108z" />
+    <!-- I 字母 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M43,38 L47,38 L47,70 L43,70 Z" />
+    <!-- R 竖线 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M51,38 L55,38 L55,70 L51,70 Z" />
+    <!-- R 上半部分 bowl -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M55,38 L61,38 Q65,38 65,44 Q65,50 61,50 L55,50 Z" />
+    <!-- R 斜腿 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M57,50 L61,70 L65,70 L59,50 Z" />
+</vector>
