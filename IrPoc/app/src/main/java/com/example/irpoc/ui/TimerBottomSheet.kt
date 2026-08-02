@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -117,7 +118,7 @@ fun TimerBottomSheet(
                 }
             }
 
-            // 执行时间
+            // 执行时间 + 重复
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -135,7 +136,7 @@ fun TimerBottomSheet(
                         TimeDigitField(
                             value = hour,
                             onValueChange = { hour = it.coerceIn(0, 23) },
-                            modifier = Modifier.width(72.dp)
+                            modifier = Modifier.width(80.dp)
                         )
                         Text(
                             ":",
@@ -147,8 +148,32 @@ fun TimerBottomSheet(
                         TimeDigitField(
                             value = minute,
                             onValueChange = { minute = it.coerceIn(0, 59) },
-                            modifier = Modifier.width(72.dp)
+                            modifier = Modifier.width(80.dp)
                         )
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(DividerGray)
+                    )
+                    Spacer(Modifier.height(16.dp))
+
+                    Text("重复", fontSize = 14.sp, color = GrayText)
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        RepeatType.entries.forEach { type ->
+                            RepeatChip(
+                                label = type.label(),
+                                selected = repeatType == type,
+                                onClick = { repeatType = type }
+                            )
+                        }
                     }
                 }
             }
@@ -213,31 +238,6 @@ fun TimerBottomSheet(
                 }
             }
 
-            // 重复
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("重复", fontSize = 14.sp, color = GrayText)
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        RepeatType.entries.forEach { type ->
-                            RepeatChip(
-                                label = type.label(),
-                                selected = repeatType == type,
-                                onClick = { repeatType = type }
-                            )
-                        }
-                    }
-                }
-            }
-
             // 保存按钮
             Button(
                 onClick = {
@@ -294,6 +294,7 @@ private fun TimeDigitField(
         keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
         singleLine = true,
         shape = RoundedCornerShape(12.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = TealLight,
             unfocusedContainerColor = BgGray,
