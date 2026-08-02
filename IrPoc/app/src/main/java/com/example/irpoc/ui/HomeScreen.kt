@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
@@ -301,10 +302,11 @@ private fun AcStatusCard(
                             .background(if (isPowerOn) Teal else LightGrayText),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            "⏻",
-                            fontSize = 24.sp,
-                            color = Color.White
+                        Icon(
+                            imageVector = Icons.Default.PowerSettingsNew,
+                            contentDescription = if (isPowerOn) "关机" else "开机",
+                            tint = Color.White,
+                            modifier = Modifier.size(26.dp)
                         )
                     }
                 }
