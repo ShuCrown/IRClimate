@@ -67,6 +67,7 @@ fun HomeScreen(
     onDeleteTask: (AcTimerTask) -> Unit,
 ) {
     var taskToDelete by remember { mutableStateOf<AcTimerTask?>(null) }
+    var showMessageSheet by remember { mutableStateOf(false) }
 
     // 删除确认对话框
     taskToDelete?.let { task ->
@@ -185,7 +186,8 @@ fun HomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp),
+                            .padding(top = 8.dp)
+                            .clickable { showMessageSheet = true },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -196,19 +198,24 @@ fun HomeScreen(
                             color = DarkText
                         )
                         Text(
-                            "共${timerEvents.size}条",
+                            "共${timerEvents.size}条 >",
                             fontSize = 14.sp,
                             color = GrayText
                         )
                     }
                 }
-                items(timerEvents.sortedByDescending { it.timestamp }.take(20), key = { it.id }) { event ->
-                    TimerEventItem(event = event)
-                }
             }
 
             item { Spacer(Modifier.height(80.dp)) }
         }
+    }
+
+    // 消息弹窗
+    if (showMessageSheet) {
+        MessageBottomSheet(
+            events = timerEvents,
+            onDismiss = { showMessageSheet = false }
+        )
     }
 }
 
