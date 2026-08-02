@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -52,14 +54,14 @@ import com.example.irpoc.model.timeText
 
 @Composable
 fun HomeScreen(
-    currentTemp: Int,
     targetTemp: Int,
     modeName: String,
     fanName: String,
-    runHours: Int,
     isPowerOn: Boolean,
     timerTasks: List<AcTimerTask>,
     timerEvents: List<TimerEvent> = emptyList(),
+    remainingSec: Int = 0,
+    onMarkAllRead: () -> Unit = {},
     onPowerClick: () -> Unit,
     onAddTimer: () -> Unit,
     onTaskToggle: (AcTimerTask, Boolean) -> Unit,
@@ -67,6 +69,8 @@ fun HomeScreen(
     onDeleteTask: (AcTimerTask) -> Unit,
 ) {
     var taskToDelete by remember { mutableStateOf<AcTimerTask?>(null) }
+    var showMessageSheet by remember { mutableStateOf(false) }
+    val unreadCount = remember(timerEvents) { timerEvents.count { !it.read } }
 
     // 删除确认对话框
     taskToDelete?.let { task ->
@@ -94,7 +98,12 @@ fun HomeScreen(
         )
     }
     Scaffold(
-        topBar = { HomeTopBar() },
+        topBar = {
+            HomeTopBar(
+                unreadCount = unreadCount,
+                onBellClick = { showMessageSheet = true }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddTimer,
@@ -118,11 +127,9 @@ fun HomeScreen(
 
             item {
                 AcStatusCard(
-                    currentTemp = currentTemp,
                     targetTemp = targetTemp,
                     modeName = modeName,
                     fanName = fanName,
-                    runHours = runHours,
                     isPowerOn = isPowerOn,
                     onPowerClick = onPowerClick
                 )
@@ -173,6 +180,7 @@ fun HomeScreen(
                 items(timerTasks, key = { it.id }) { task ->
                     TimerTaskItem(
                         task = task,
+                        remainingSec = if (task.enabled) remainingSec else 0,
                         onToggle = { onTaskToggle(task, it) },
                         onEdit = { onEditTask(task) },
                         onDelete = { taskToDelete = task }
@@ -180,40 +188,25 @@ fun HomeScreen(
                 }
             }
 
-            if (timerEvents.isNotEmpty()) {
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "消息",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DarkText
-                        )
-                        Text(
-                            "共${timerEvents.size}条",
-                            fontSize = 14.sp,
-                            color = GrayText
-                        )
-                    }
-                }
-                items(timerEvents.sortedByDescending { it.timestamp }.take(20), key = { it.id }) { event ->
-                    TimerEventItem(event = event)
-                }
-            }
-
             item { Spacer(Modifier.height(80.dp)) }
         }
+    }
+
+    // 消息弹窗
+    if (showMessageSheet) {
+        MessageBottomSheet(
+            events = timerEvents,
+            onDismiss = { showMessageSheet = false },
+            onMarkAllRead = onMarkAllRead
+        )
     }
 }
 
 @Composable
-private fun HomeTopBar() {
+private fun HomeTopBar(
+    unreadCount: Int = 0,
+    onBellClick: () -> Unit = {},
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -227,27 +220,31 @@ private fun HomeTopBar() {
             color = DarkText,
             modifier = Modifier.align(Alignment.CenterStart)
         )
-        IconButton(
-            onClick = { },
-            modifier = Modifier.align(Alignment.CenterEnd)
+        BadgedBox(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            badge = {
+                if (unreadCount > 0) {
+                    Badge { Text(if (unreadCount > 99) "99+" else unreadCount.toString()) }
+                }
+            }
         ) {
-            Icon(
-                imageVector = Icons.Default.Notifications,
-                contentDescription = "通知",
-                tint = DarkText,
-                modifier = Modifier.size(24.dp)
-            )
+            IconButton(onClick = onBellClick) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = "消息",
+                    tint = DarkText,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun AcStatusCard(
-    currentTemp: Int,
     targetTemp: Int,
     modeName: String,
     fanName: String,
-    runHours: Int,
     isPowerOn: Boolean,
     onPowerClick: () -> Unit,
 ) {
@@ -290,11 +287,6 @@ private fun AcStatusCard(
                             fontSize = 14.sp,
                             color = GrayText
                         )
-                        Text(
-                            "已运行 ${runHours} 小时",
-                            fontSize = 12.sp,
-                            color = LightGrayText
-                        )
                     }
                 }
                 IconButton(
@@ -330,7 +322,7 @@ private fun AcStatusCard(
                         .height(36.dp)
                         .background(DividerGray)
                 )
-                TempInfoColumn(label = "当前", value = "${currentTemp}°C")
+                TempInfoColumn(label = "模式", value = modeName)
                 Box(
                     modifier = Modifier
                         .width(1.dp)
@@ -360,6 +352,7 @@ private fun TempInfoColumn(label: String, value: String) {
 @Composable
 private fun TimerTaskItem(
     task: AcTimerTask,
+    remainingSec: Int = 0,
     onToggle: (Boolean) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -379,7 +372,10 @@ private fun TimerTaskItem(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
                     task.timeText(),
                     fontSize = 28.sp,
@@ -392,14 +388,31 @@ private fun TimerTaskItem(
                         task.name,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = DarkText
+                        color = DarkText,
+                        maxLines = 1
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        "${task.targetTemp}°C · ${task.repeatType.label()}",
-                        fontSize = 13.sp,
-                        color = GrayText
-                    )
+                    if (task.enabled && remainingSec > 0) {
+                        val totalMin = (remainingSec + 59) / 60
+                        val remainText = if (totalMin >= 60) {
+                            "剩余 ${totalMin / 60} 小时"
+                        } else {
+                            "剩余 ${totalMin} 分钟"
+                        }
+                        Text(
+                            "$remainText · ${task.targetTemp}°C · ${task.repeatType.label()}",
+                            fontSize = 13.sp,
+                            color = Teal,
+                            maxLines = 1
+                        )
+                    } else {
+                        Text(
+                            "${task.targetTemp}°C · ${task.repeatType.label()}",
+                            fontSize = 13.sp,
+                            color = GrayText,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {

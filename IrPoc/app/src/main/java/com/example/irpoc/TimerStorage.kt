@@ -48,5 +48,39 @@ class TimerStorage(context: Context) {
 
     companion object {
         private const val KEY_TASKS = "tasks"
+        private const val KEY_AC_STATE = "ac_state"
+    }
+
+    // ── AC 下发状态持久化 ──────────────────────────────────
+    fun loadAcState(): AcState? {
+        val json = prefs.getString(KEY_AC_STATE, null) ?: return null
+        return try {
+            val obj = JSONObject(json)
+            AcState(
+                powerOn = obj.getBoolean("powerOn"),
+                targetTemp = obj.getInt("targetTemp"),
+                mode = obj.getInt("mode"),
+                fan = obj.getInt("fan"),
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun saveAcState(state: AcState) {
+        val obj = JSONObject().apply {
+            put("powerOn", state.powerOn)
+            put("targetTemp", state.targetTemp)
+            put("mode", state.mode)
+            put("fan", state.fan)
+        }
+        prefs.edit().putString(KEY_AC_STATE, obj.toString()).apply()
     }
 }
+
+data class AcState(
+    val powerOn: Boolean,
+    val targetTemp: Int,
+    val mode: Int,
+    val fan: Int,
+)

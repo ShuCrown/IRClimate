@@ -24,6 +24,7 @@ data class TimerEvent(
     val taskName: String,
     val detail: String = "",
     val timestamp: Long = System.currentTimeMillis(),
+    val read: Boolean = false,
 ) {
     fun formattedTime(): String =
         SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestamp))

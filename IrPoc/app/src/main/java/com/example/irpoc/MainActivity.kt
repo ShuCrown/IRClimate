@@ -65,16 +65,13 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<String>) {
-    // AC 状态
-    var currentTemp by remember { mutableIntStateOf(26) }
-    var targetTemp by remember { mutableIntStateOf(24) }
-    var currentMode by remember { mutableIntStateOf(0x20) }
-    var currentFan by remember { mutableIntStateOf(0xA0) }
-    var isPowerOn by remember { mutableStateOf(true) }
-    var runHours by remember { mutableIntStateOf(2) }
-
-    // 持久化存储
+    // AC 下发状态（从持久化加载）
     val storage = remember { TimerStorage(context) }
+    val savedState = remember { storage.loadAcState() }
+    var isPowerOn by remember { mutableStateOf(savedState?.powerOn ?: true) }
+    var targetTemp by remember { mutableIntStateOf(savedState?.targetTemp ?: 24) }
+    var currentMode by remember { mutableIntStateOf(savedState?.mode ?: 0x20) }
+    var currentFan by remember { mutableIntStateOf(savedState?.fan ?: 0xA0) }
 
     // 定时任务列表（从持久化加载）
     val timerTasks = remember {
@@ -128,6 +125,12 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
             irManager.transmit(38000, pattern)
             val mName = modeMap.find { it.first == mode }?.second ?: "?"
             log("✅ AUX: ${if (powerOn) "开机" else "关机"} ${temp}°C $mName")
+            // 同步下发状态并持久化
+            isPowerOn = powerOn
+            targetTemp = temp
+            currentMode = mode
+            currentFan = fan
+            storage.saveAcState(AcState(powerOn, temp, mode, fan))
         } catch (e: Exception) {
             log("❌ AUX 发送异常: ${e.message}")
         }
@@ -144,7 +147,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         if (target.timeInMillis <= now.timeInMillis) {
             target.add(java.util.Calendar.DAY_OF_MONTH, 1)
         }
-        val delayMin = ((target.timeInMillis - now.timeInMillis) / 60000).toInt()
+        val delayMin = ((target.timeInMillis - now.timeInMillis + 59999) / 60000).toInt()
         val intent = AcTimerService.startIntent(context, delayMin, task.targetTemp, currentMode, currentFan)
         ContextCompat.startForegroundService(context, intent)
         log("⏰ 启动定时: ${task.name} ${task.hour.toString().padStart(2,'0')}:${task.minute.toString().padStart(2,'0')} → ${task.targetTemp}°C (${delayMin}分钟后)")
@@ -166,8 +169,17 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                     "done" -> {
                         timerActive = false
                         timerRemainingSec = 0
+                        // 同步定时执行后的下发状态
+                        val t = intent.getIntExtra(AcTimerService.EXTRA_TARGET_TEMP, targetTemp)
+                        val m = intent.getIntExtra(AcTimerService.EXTRA_MODE, currentMode)
+                        val f = intent.getIntExtra(AcTimerService.EXTRA_FAN, currentFan)
+                        isPowerOn = true
+                        targetTemp = t
+                        currentMode = m
+                        currentFan = f
+                        storage.saveAcState(AcState(true, t, m, f))
                         val taskName = timerTasks.find { it.enabled }?.name ?: "定时调温"
-                        addEvent(EventType.TASK_EXECUTED, taskName, "已调至目标温度")
+                        addEvent(EventType.TASK_EXECUTED, taskName, "已调至 ${t}°C")
                     }
                     "cancelled" -> {
                         timerActive = false
@@ -225,14 +237,20 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
     }
 
     HomeScreen(
-        currentTemp = currentTemp,
         targetTemp = targetTemp,
         modeName = modeName,
         fanName = fanName,
-        runHours = runHours,
         isPowerOn = isPowerOn,
         timerTasks = timerTasks,
         timerEvents = timerEvents,
+        remainingSec = timerRemainingSec,
+        onMarkAllRead = {
+            for (i in timerEvents.indices) {
+                if (!timerEvents[i].read) {
+                    timerEvents[i] = timerEvents[i].copy(read = true)
+                }
+            }
+        },
         onPowerClick = {
             isPowerOn = !isPowerOn
             sendAc(isPowerOn, targetTemp, currentMode, currentFan)
