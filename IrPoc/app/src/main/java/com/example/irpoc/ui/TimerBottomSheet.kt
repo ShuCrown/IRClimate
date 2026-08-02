@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -63,6 +65,8 @@ fun TimerBottomSheet(
     var targetTemp by remember { mutableIntStateOf(initialTask?.targetTemp ?: defaultTemp) }
     var repeatType by remember { mutableStateOf(initialTask?.repeatType ?: RepeatType.WORKDAY) }
 
+    val maxSheetHeight = (LocalConfiguration.current.screenHeightDp * 0.9f).dp
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -72,9 +76,10 @@ fun TimerBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(max = maxSheetHeight)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // 标题
             Text(
@@ -92,9 +97,9 @@ fun TimerBottomSheet(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Text("名称", fontSize = 14.sp, color = GrayText)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
@@ -119,9 +124,9 @@ fun TimerBottomSheet(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Text("执行时间", fontSize = 14.sp, color = GrayText)
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
@@ -130,11 +135,11 @@ fun TimerBottomSheet(
                         TimeDigitField(
                             value = hour,
                             onValueChange = { hour = it.coerceIn(0, 23) },
-                            modifier = Modifier.width(80.dp)
+                            modifier = Modifier.width(72.dp)
                         )
                         Text(
                             ":",
-                            fontSize = 48.sp,
+                            fontSize = 40.sp,
                             fontWeight = FontWeight.Bold,
                             color = DarkText,
                             modifier = Modifier.padding(horizontal = 4.dp)
@@ -142,7 +147,7 @@ fun TimerBottomSheet(
                         TimeDigitField(
                             value = minute,
                             onValueChange = { minute = it.coerceIn(0, 59) },
-                            modifier = Modifier.width(80.dp)
+                            modifier = Modifier.width(72.dp)
                         )
                     }
                 }
@@ -156,19 +161,19 @@ fun TimerBottomSheet(
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         "温度",
                         fontSize = 14.sp,
                         color = GrayText,
-                        modifier = Modifier.align(Alignment.Start).padding(start = 20.dp)
+                        modifier = Modifier.align(Alignment.Start).padding(start = 16.dp)
                     )
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(8.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(32.dp)
+                        horizontalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
                         TempButton(
                             text = "−",
@@ -176,7 +181,7 @@ fun TimerBottomSheet(
                         )
                         Box(
                             modifier = Modifier
-                                .size(140.dp)
+                                .size(100.dp)
                                 .clip(CircleShape)
                                 .border(1.5.dp, Teal.copy(alpha = 0.3f), CircleShape)
                                 .background(TealLight),
@@ -185,16 +190,16 @@ fun TimerBottomSheet(
                             Row(verticalAlignment = Alignment.Top) {
                                 Text(
                                     "$targetTemp",
-                                    fontSize = 56.sp,
+                                    fontSize = 42.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Teal
                                 )
                                 Text(
                                     "°",
-                                    fontSize = 28.sp,
+                                    fontSize = 22.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Teal,
-                                    modifier = Modifier.padding(top = 8.dp)
+                                    modifier = Modifier.padding(top = 4.dp)
                                 )
                             }
                         }
@@ -203,7 +208,7 @@ fun TimerBottomSheet(
                             onClick = { if (targetTemp < 30) targetTemp++ }
                         )
                     }
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text("16°C - 30°C", fontSize = 13.sp, color = GrayText)
                 }
             }
@@ -215,9 +220,9 @@ fun TimerBottomSheet(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     Text("重复", fontSize = 14.sp, color = GrayText)
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -246,7 +251,7 @@ fun TimerBottomSheet(
                         )
                     )
                 },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Teal)
             ) {
@@ -257,7 +262,7 @@ fun TimerBottomSheet(
                 )
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
@@ -281,7 +286,7 @@ private fun TimeDigitField(
         },
         modifier = modifier,
         textStyle = TextStyle(
-            fontSize = 48.sp,
+            fontSize = 40.sp,
             fontWeight = FontWeight.Bold,
             color = DarkText,
             textAlign = TextAlign.Center
