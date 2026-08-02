@@ -9,6 +9,8 @@ import android.hardware.ConsumerIrManager
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.example.irpoc.model.AcFan
+import com.example.irpoc.model.AcMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,7 +45,7 @@ class AcTimerService : Service() {
         const val EXTRA_REMAINING  = "remaining"
         const val EXTRA_STATUS     = "status"
 
-        /** 启动定时调温 */
+        /** 启动定时任务 */
         fun startIntent(
             ctx: Context,
             delayMin: Int,
@@ -98,9 +100,12 @@ class AcTimerService : Service() {
         lastMode = mode
         lastFan = fan
         val totalSec = delayMin * 60
+        val modeLabel = AcMode.fromCode(mode).label
+        val fanLabel = AcFan.fromCode(fan).label
+        val summary = "$modeLabel ${targetTemp}°C · $fanLabel"
 
         // 前台通知
-        startForeground(NOTIFICATION_ID, buildNotification("定时调温", "${delayMin}分钟后调至${targetTemp}°C", totalSec))
+        startForeground(NOTIFICATION_ID, buildNotification("定时任务", "${delayMin}分钟后切换 $summary", totalSec))
 
         // 广播：已启动
         broadcastTick("started", totalSec)
@@ -112,7 +117,7 @@ class AcTimerService : Service() {
                 remaining--
                 // 更新通知
                 val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-                nm.notify(NOTIFICATION_ID, buildNotification("定时调温", "剩余 ${remaining / 60}分${remaining % 60}秒", remaining))
+                nm.notify(NOTIFICATION_ID, buildNotification("定时任务", "剩余 ${remaining / 60}分${remaining % 60}秒 → $summary", remaining))
                 // 广播：倒计时
                 broadcastTick("running", remaining)
             }
@@ -123,11 +128,11 @@ class AcTimerService : Service() {
                 val data = auxAcData(powerOn = true, tempCelsius = targetTemp, mode = mode, fanSpeed = fan)
                 val pattern = bytesToNecPattern(data)
                 irManager?.transmit(38000, pattern)
-                Log.d("AcTimerService", "定时调温执行: 已切换至 ${targetTemp}°C")
+                Log.d("AcTimerService", "定时任务执行: 已切换 $summary")
 
                 // 更新通知为完成状态
                 val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-                nm.notify(NOTIFICATION_ID, buildNotification("定时调温 ✓", "已调至 ${targetTemp}°C", 0))
+                nm.notify(NOTIFICATION_ID, buildNotification("定时任务 ✓", "已切换 $summary", 0))
             } catch (e: Exception) {
                 Log.e("AcTimerService", "IR 发射失败: ${e.message}")
             }

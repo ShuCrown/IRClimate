@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.example.irpoc.model.AcTimerTask
 import com.example.irpoc.model.TimerEvent
 import com.example.irpoc.model.label
+import com.example.irpoc.model.settingSummary
 import com.example.irpoc.model.timeText
 
 @Composable
@@ -400,14 +401,14 @@ private fun TimerTaskItem(
                             "剩余 ${totalMin} 分钟"
                         }
                         Text(
-                            "$remainText · ${task.targetTemp}°C · ${task.repeatType.label()}",
+                            "$remainText · ${task.settingSummary()} · ${task.repeatType.label()}",
                             fontSize = 13.sp,
                             color = Teal,
                             maxLines = 1
                         )
                     } else {
                         Text(
-                            "${task.targetTemp}°C · ${task.repeatType.label()}",
+                            "${task.settingSummary()} · ${task.repeatType.label()}",
                             fontSize = 13.sp,
                             color = GrayText,
                             maxLines = 1

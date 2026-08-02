@@ -32,9 +32,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
+import com.example.irpoc.model.AcFan
+import com.example.irpoc.model.AcMode
 import com.example.irpoc.model.AcTimerTask
 import com.example.irpoc.model.EventType
 import com.example.irpoc.model.TimerEvent
+import com.example.irpoc.model.settingSummary
+import com.example.irpoc.model.timeText
 import com.example.irpoc.ui.HomeScreen
 import com.example.irpoc.ui.TimerBottomSheet
 import java.text.SimpleDateFormat
@@ -98,15 +102,8 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
     var timerActive by remember { mutableStateOf(false) }
     var timerRemainingSec by remember { mutableIntStateOf(0) }
 
-    val modeMap = remember {
-        listOf(0x20 to "制冷", 0x40 to "制热", 0x10 to "除湿", 0x00 to "自动")
-    }
-    val fanMap = remember {
-        listOf(0xA0 to "自动", 0x60 to "低风", 0x40 to "中风", 0x20 to "高风")
-    }
-
-    val modeName = modeMap.find { it.first == currentMode }?.second ?: "制冷"
-    val fanName = fanMap.find { it.first == currentFan }?.second ?: "自动"
+    val modeName = remember(currentMode) { AcMode.fromCode(currentMode).label }
+    val fanName = remember(currentFan) { AcFan.fromCode(currentFan).label }
 
     val irManager = remember {
         context.getSystemService(Context.CONSUMER_IR_SERVICE) as ConsumerIrManager
@@ -123,8 +120,9 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
             val data = auxAcData(powerOn, temp, mode, fan)
             val pattern = bytesToNecPattern(data)
             irManager.transmit(38000, pattern)
-            val mName = modeMap.find { it.first == mode }?.second ?: "?"
-            log("✅ AUX: ${if (powerOn) "开机" else "关机"} ${temp}°C $mName")
+            val mName = AcMode.fromCode(mode).label
+            val fName = AcFan.fromCode(fan).label
+            log("✅ AUX: ${if (powerOn) "开机" else "关机"} ${temp}°C $mName $fName")
             // 同步下发状态并持久化
             isPowerOn = powerOn
             targetTemp = temp
@@ -148,9 +146,11 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
             target.add(java.util.Calendar.DAY_OF_MONTH, 1)
         }
         val delayMin = ((target.timeInMillis - now.timeInMillis + 59999) / 60000).toInt()
-        val intent = AcTimerService.startIntent(context, delayMin, task.targetTemp, currentMode, currentFan)
+        val intent = AcTimerService.startIntent(
+            context, delayMin, task.targetTemp, task.mode.code, task.fan.code
+        )
         ContextCompat.startForegroundService(context, intent)
-        log("⏰ 启动定时: ${task.name} ${task.hour.toString().padStart(2,'0')}:${task.minute.toString().padStart(2,'0')} → ${task.targetTemp}°C (${delayMin}分钟后)")
+        log("⏰ 启动定时: ${task.name} ${task.timeText()} → ${task.settingSummary()} (${delayMin}分钟后)")
     }
 
     val timerReceiver = remember {
@@ -162,7 +162,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                         timerActive = true
                         timerRemainingSec = intent.getIntExtra(AcTimerService.EXTRA_REMAINING, 0)
                         // 查找当前启用的任务作为事件来源
-                        val taskName = timerTasks.find { it.enabled }?.name ?: "定时调温"
+                        val taskName = timerTasks.find { it.enabled }?.name ?: "定时任务"
                         addEvent(EventType.TASK_PUBLISHED, taskName, "后台倒计时 ${timerRemainingSec / 60} 分钟")
                     }
                     "running" -> timerRemainingSec = intent.getIntExtra(AcTimerService.EXTRA_REMAINING, 0)
@@ -178,13 +178,14 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                         currentMode = m
                         currentFan = f
                         storage.saveAcState(AcState(true, t, m, f))
-                        val taskName = timerTasks.find { it.enabled }?.name ?: "定时调温"
-                        addEvent(EventType.TASK_EXECUTED, taskName, "已调至 ${t}°C")
+                        val taskName = timerTasks.find { it.enabled }?.name ?: "定时任务"
+                        val detail = "${AcMode.fromCode(m).label} ${t}°C · ${AcFan.fromCode(f).label}"
+                        addEvent(EventType.TASK_EXECUTED, taskName, "已切换 $detail")
                     }
                     "cancelled" -> {
                         timerActive = false
                         timerRemainingSec = 0
-                        val taskName = timerTasks.find { it.enabled }?.name ?: "定时调温"
+                        val taskName = timerTasks.find { it.enabled }?.name ?: "定时任务"
                         addEvent(EventType.TASK_CANCELLED, taskName, "用户取消")
                     }
                 }
@@ -296,6 +297,8 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         TimerBottomSheet(
             initialTask = editingTask,
             defaultTemp = targetTemp,
+            defaultMode = AcMode.fromCode(currentMode),
+            defaultFan = AcFan.fromCode(currentFan),
             onDismiss = {
                 showTimerSheet = false
                 editingTask = null
@@ -307,11 +310,11 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                     if (idx >= 0) {
                         timerTasks[idx] = task
                     }
-                    addEvent(EventType.TASK_UPDATED, task.name, "${task.hour.toString().padStart(2,'0')}:${task.minute.toString().padStart(2,'0')} → ${task.targetTemp}°C")
+                    addEvent(EventType.TASK_UPDATED, task.name, "${task.timeText()} → ${task.settingSummary()}")
                 } else {
                     // 新建模式
                     timerTasks.add(task)
-                    addEvent(EventType.TASK_CREATED, task.name, "${task.hour.toString().padStart(2,'0')}:${task.minute.toString().padStart(2,'0')} → ${task.targetTemp}°C")
+                    addEvent(EventType.TASK_CREATED, task.name, "${task.timeText()} → ${task.settingSummary()}")
                 }
                 persist()
                 editingTask = null
