@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -34,7 +36,9 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -68,6 +72,14 @@ fun HomeScreen(
 ) {
     var taskToDelete by remember { mutableStateOf<AcTimerTask?>(null) }
     var showMessageSheet by remember { mutableStateOf(false) }
+    var unreadCount by remember { mutableIntStateOf(0) }
+    var lastEventSize by remember { mutableIntStateOf(timerEvents.size) }
+    LaunchedEffect(timerEvents.size) {
+        if (timerEvents.size > lastEventSize) {
+            unreadCount += timerEvents.size - lastEventSize
+        }
+        lastEventSize = timerEvents.size
+    }
 
     // 删除确认对话框
     taskToDelete?.let { task ->
@@ -95,7 +107,15 @@ fun HomeScreen(
         )
     }
     Scaffold(
-        topBar = { HomeTopBar() },
+        topBar = {
+            HomeTopBar(
+                unreadCount = unreadCount,
+                onBellClick = {
+                    unreadCount = 0
+                    showMessageSheet = true
+                }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddTimer,
@@ -181,31 +201,6 @@ fun HomeScreen(
                 }
             }
 
-            if (timerEvents.isNotEmpty()) {
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                            .clickable { showMessageSheet = true },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "消息",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DarkText
-                        )
-                        Text(
-                            "共${timerEvents.size}条 >",
-                            fontSize = 14.sp,
-                            color = GrayText
-                        )
-                    }
-                }
-            }
-
             item { Spacer(Modifier.height(80.dp)) }
         }
     }
@@ -220,7 +215,10 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HomeTopBar() {
+private fun HomeTopBar(
+    unreadCount: Int = 0,
+    onBellClick: () -> Unit = {},
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -234,16 +232,22 @@ private fun HomeTopBar() {
             color = DarkText,
             modifier = Modifier.align(Alignment.CenterStart)
         )
-        IconButton(
-            onClick = { },
-            modifier = Modifier.align(Alignment.CenterEnd)
+        BadgedBox(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            badge = {
+                if (unreadCount > 0) {
+                    Badge { Text(if (unreadCount > 99) "99+" else unreadCount.toString()) }
+                }
+            }
         ) {
-            Icon(
-                imageVector = Icons.Default.Notifications,
-                contentDescription = "通知",
-                tint = DarkText,
-                modifier = Modifier.size(24.dp)
-            )
+            IconButton(onClick = onBellClick) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = "消息",
+                    tint = DarkText,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
     }
 }
