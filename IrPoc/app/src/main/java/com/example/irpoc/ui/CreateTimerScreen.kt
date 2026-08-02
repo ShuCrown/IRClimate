@@ -340,9 +340,9 @@ private fun TimeDigitField(
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = TealLight,
-            unfocusedContainerColor = Color.White,
+            unfocusedContainerColor = BgGray,
             focusedBorderColor = Teal,
-            unfocusedBorderColor = Teal.copy(alpha = 0.5f),
+            unfocusedBorderColor = Teal,
             cursorColor = Teal,
         )
     )
