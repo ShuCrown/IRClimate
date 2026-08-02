@@ -35,9 +35,7 @@ import androidx.core.content.ContextCompat
 import com.example.irpoc.model.AcTimerTask
 import com.example.irpoc.model.EventType
 import com.example.irpoc.model.TimerEvent
-import com.example.irpoc.ui.CreateTimerScreen
 import com.example.irpoc.ui.HomeScreen
-import com.example.irpoc.ui.Screen
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -66,8 +64,6 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<String>) {
-    var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
-
     // AC 状态
     var currentTemp by remember { mutableIntStateOf(26) }
     var targetTemp by remember { mutableIntStateOf(24) }
@@ -95,6 +91,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
 
     // 编辑中的任务（null 表示新建模式）
     var editingTask by remember { mutableStateOf<AcTimerTask?>(null) }
+    var showTimerSheet by remember { mutableStateOf(false) }
 
     // 每次列表变化时自动持久化
     fun persist() = storage.saveTasks(timerTasks.toList())
@@ -226,61 +223,63 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         )
     }
 
-    when (currentScreen) {
-        Screen.Home -> HomeScreen(
-            currentTemp = currentTemp,
-            targetTemp = targetTemp,
-            modeName = modeName,
-            fanName = fanName,
-            runHours = runHours,
-            isPowerOn = isPowerOn,
-            timerTasks = timerTasks,
-            timerEvents = timerEvents,
-            onPowerClick = {
-                isPowerOn = !isPowerOn
-                sendAc(isPowerOn, targetTemp, currentMode, currentFan)
-            },
-            onAddTimer = { currentScreen = Screen.Timer },
-            onEditTask = { task ->
-                editingTask = task
-                currentScreen = Screen.Timer
-            },
-            onTaskToggle = { task, enabled ->
-                val idx = timerTasks.indexOfFirst { it.id == task.id }
-                if (idx >= 0) {
-                    val updated = task.copy(enabled = enabled)
-                    timerTasks[idx] = updated
-                    persist()
-                    if (enabled) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-                                != PackageManager.PERMISSION_GRANTED
-                            ) {
-                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                        }
-                        addEvent(EventType.TASK_PUBLISHED, task.name, "后台倒计时中")
-                        startTimerTask(updated)
-                    } else {
-                        addEvent(EventType.TASK_CANCELLED, task.name, "用户关闭")
-                        context.stopService(AcTimerService.cancelIntent(context))
-                    }
-                }
-            },
-            onDeleteTask = { task ->
-                timerTasks.removeAll { it.id == task.id }
+    HomeScreen(
+        currentTemp = currentTemp,
+        targetTemp = targetTemp,
+        modeName = modeName,
+        fanName = fanName,
+        runHours = runHours,
+        isPowerOn = isPowerOn,
+        timerTasks = timerTasks,
+        timerEvents = timerEvents,
+        onPowerClick = {
+            isPowerOn = !isPowerOn
+            sendAc(isPowerOn, targetTemp, currentMode, currentFan)
+        },
+        onAddTimer = { showTimerSheet = true },
+        onEditTask = { task ->
+            editingTask = task
+            showTimerSheet = true
+        },
+        onTaskToggle = { task, enabled ->
+            val idx = timerTasks.indexOfFirst { it.id == task.id }
+            if (idx >= 0) {
+                val updated = task.copy(enabled = enabled)
+                timerTasks[idx] = updated
                 persist()
-                addEvent(EventType.TASK_CANCELLED, task.name, "已删除")
-                context.stopService(AcTimerService.cancelIntent(context))
-                log("🗑 删除定时: ${task.name}")
+                if (enabled) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                            != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                    addEvent(EventType.TASK_PUBLISHED, task.name, "后台倒计时中")
+                    startTimerTask(updated)
+                } else {
+                    addEvent(EventType.TASK_CANCELLED, task.name, "用户关闭")
+                    context.stopService(AcTimerService.cancelIntent(context))
+                }
             }
-        )
-        Screen.Timer -> CreateTimerScreen(
+        },
+        onDeleteTask = { task ->
+            timerTasks.removeAll { it.id == task.id }
+            persist()
+            addEvent(EventType.TASK_CANCELLED, task.name, "已删除")
+            context.stopService(AcTimerService.cancelIntent(context))
+            log("🗑 删除定时: ${task.name}")
+        }
+    )
+
+    // 定时任务编辑/新增弹窗
+    if (showTimerSheet) {
+        TimerBottomSheet(
             initialTask = editingTask,
             defaultTemp = targetTemp,
-            onBack = {
+            onDismiss = {
+                showTimerSheet = false
                 editingTask = null
-                currentScreen = Screen.Home
             },
             onSave = { task ->
                 if (editingTask != null) {
@@ -297,7 +296,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                 }
                 persist()
                 editingTask = null
-                currentScreen = Screen.Home
+                showTimerSheet = false
                 if (task.enabled) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
@@ -309,43 +308,6 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                     addEvent(EventType.TASK_PUBLISHED, task.name, "后台倒计时中")
                     startTimerTask(task)
                 }
-            }
-        )
-        else -> HomeScreen(
-            currentTemp = currentTemp,
-            targetTemp = targetTemp,
-            modeName = modeName,
-            fanName = fanName,
-            runHours = runHours,
-            isPowerOn = isPowerOn,
-            timerTasks = timerTasks,
-            timerEvents = timerEvents,
-            onPowerClick = {
-                isPowerOn = !isPowerOn
-                sendAc(isPowerOn, targetTemp, currentMode, currentFan)
-            },
-            onAddTimer = { currentScreen = Screen.Timer },
-            onEditTask = { task ->
-                editingTask = task
-                currentScreen = Screen.Timer
-            },
-            onTaskToggle = { task, enabled ->
-                val idx = timerTasks.indexOfFirst { it.id == task.id }
-                if (idx >= 0) {
-                    val updated = task.copy(enabled = enabled)
-                    timerTasks[idx] = updated
-                    persist()
-                    if (enabled) {
-                        addEvent(EventType.TASK_PUBLISHED, task.name, "后台倒计时中")
-                    } else {
-                        addEvent(EventType.TASK_CANCELLED, task.name, "用户关闭")
-                    }
-                }
-            },
-            onDeleteTask = { task ->
-                timerTasks.removeAll { it.id == task.id }
-                persist()
-                addEvent(EventType.TASK_CANCELLED, task.name, "已删除")
             }
         )
     }
