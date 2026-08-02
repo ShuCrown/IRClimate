@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -136,11 +135,11 @@ fun TimerBottomSheet(
                         TimeDigitField(
                             value = hour,
                             onValueChange = { hour = it.coerceIn(0, 23) },
-                            modifier = Modifier.width(80.dp)
+                            modifier = Modifier.width(96.dp)
                         )
                         Text(
                             ":",
-                            fontSize = 40.sp,
+                            fontSize = 36.sp,
                             fontWeight = FontWeight.Bold,
                             color = DarkText,
                             modifier = Modifier.padding(horizontal = 4.dp)
@@ -148,7 +147,7 @@ fun TimerBottomSheet(
                         TimeDigitField(
                             value = minute,
                             onValueChange = { minute = it.coerceIn(0, 59) },
-                            modifier = Modifier.width(80.dp)
+                            modifier = Modifier.width(96.dp)
                         )
                     }
 
@@ -286,7 +285,7 @@ private fun TimeDigitField(
         },
         modifier = modifier,
         textStyle = TextStyle(
-            fontSize = 40.sp,
+            fontSize = 36.sp,
             fontWeight = FontWeight.Bold,
             color = DarkText,
             textAlign = TextAlign.Center
@@ -294,7 +293,6 @@ private fun TimeDigitField(
         keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
         singleLine = true,
         shape = RoundedCornerShape(12.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = TealLight,
             unfocusedContainerColor = BgGray,
