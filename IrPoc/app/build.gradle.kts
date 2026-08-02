@@ -6,34 +6,49 @@ plugins {
 
 // ── 版本号自动递增 ──────────────────────────────────────────
 val versionFile = rootProject.file("version.properties")
-val versionProps = java.util.Properties()
 
-if (versionFile.exists()) {
-    versionFile.inputStream().use { versionProps.load(it) }
+fun readVersionCode(): Int {
+    if (!versionFile.exists()) return 1
+    return versionFile.readLines()
+        .firstOrNull { it.startsWith("VERSION_CODE=") }
+        ?.substringAfter("=")
+        ?.trim()
+        ?.toIntOrNull() ?: 1
 }
 
-var currentVersionCode = (versionProps.getProperty("VERSION_CODE") ?: "1").toInt()
-var currentVersionName = versionProps.getProperty("VERSION_NAME") ?: "1.0.0"
+fun readVersionName(): String {
+    if (!versionFile.exists()) return "1.0.0"
+    return versionFile.readLines()
+        .firstOrNull { it.startsWith("VERSION_NAME=") }
+        ?.substringAfter("=")
+        ?.trim()
+        ?.ifEmpty { null } ?: "1.0.0"
+}
 
-// 每次 assemble 前递增版本号
+fun writeVersion(code: Int, name: String) {
+    versionFile.writeText("VERSION_CODE=$code\nVERSION_NAME=$name\n")
+}
+
+fun incrementVersionName(vn: String): String {
+    val parts = vn.split(".").toMutableList()
+    if (parts.size == 3) {
+        parts[2] = (parts[2].toInt() + 1).toString()
+    } else {
+        parts.add("1")
+    }
+    return parts.joinToString(".")
+}
+
+var currentVersionCode = readVersionCode()
+var currentVersionName = readVersionName()
+
 val incrementVersionTask = tasks.register("incrementVersion") {
     doLast {
-        val props = java.util.Properties()
-        versionFile.inputStream().use { props.load(it) }
+        val vc = readVersionCode() + 1
+        val vn = readVersionName()
+        val newVn = incrementVersionName(vn)
 
-        val vc = (props.getProperty("VERSION_CODE") ?: "1").toInt() + 1
-        val vn = props.getProperty("VERSION_NAME") ?: "1.0.0"
-        val parts = vn.split(".").toMutableList()
-        if (parts.size == 3) {
-            parts[2] = (parts[2].toInt() + 1).toString()
-        } else {
-            parts.add("1")
-        }
-        val newVn = parts.joinToString(".")
-
-        props.setProperty("VERSION_CODE", vc.toString())
-        props.setProperty("VERSION_NAME", newVn)
-        versionFile.outputStream().use { props.store(it, "Auto-incremented by build") }
+        writeVersion(vc, newVn)
 
         // 更新当前构建的值
         currentVersionCode = vc
