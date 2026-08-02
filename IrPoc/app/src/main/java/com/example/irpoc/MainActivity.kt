@@ -147,7 +147,8 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         }
         val delayMin = ((target.timeInMillis - now.timeInMillis + 59999) / 60000).toInt()
         val intent = AcTimerService.startIntent(
-            context, delayMin, task.targetTemp, task.mode.code, task.fan.code
+            context, delayMin, task.targetTemp, task.mode.code, task.fan.code,
+            task.sleep, task.quiet
         )
         ContextCompat.startForegroundService(context, intent)
         log("⏰ 启动定时: ${task.name} ${task.timeText()} → ${task.settingSummary()} (${delayMin}分钟后)")
@@ -360,16 +361,19 @@ fun auxAcData(
     swingH: Boolean = true,
     sleep: Boolean = false,
     eco: Boolean = false,
+    quiet: Boolean = false,
 ): ByteArray {
     val tempVal = (tempCelsius - 8).coerceIn(0, 31)
     val byte2 = ((tempVal shl 3) or 0b101).toByte()
     val byte3 = (if (swingH) 0xE0 else 0x00).toByte()
+    // byte5: 风扇速度位
+    val byte5 = (if (quiet) 0x80 else 0x00).toByte()
     val byte7 = (mode or (if (sleep) 0x04 else 0x00)).toByte()
     val byte10 = ((if (powerOn) 0x20 else 0x00) or (if (eco) 0x08 else 0x00)).toByte()
     val byte12 = 0x45.toByte()
 
     val header = byteArrayOf(
-        0xC3.toByte(), byte2, byte3, 0x00, fanSpeed.toByte(), 0x00,
+        0xC3.toByte(), byte2, byte3, 0x00, byte5, 0x00,
         byte7, 0x00, 0x00, byte10, 0x00, byte12
     )
     val checksum = (header.sumOf { it.toInt() and 0xFF } and 0xFF).toByte()

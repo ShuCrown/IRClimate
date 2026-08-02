@@ -42,6 +42,8 @@ class AcTimerService : Service() {
         const val EXTRA_TARGET_TEMP = "target_temp"
         const val EXTRA_MODE       = "mode"
         const val EXTRA_FAN        = "fan"
+        const val EXTRA_SLEEP      = "sleep"
+        const val EXTRA_QUIET      = "quiet"
         const val EXTRA_REMAINING  = "remaining"
         const val EXTRA_STATUS     = "status"
 
@@ -52,12 +54,16 @@ class AcTimerService : Service() {
             targetTemp: Int,
             mode: Int,
             fan: Int,
+            sleep: Boolean = false,
+            quiet: Boolean = false,
         ): Intent = Intent(ctx, AcTimerService::class.java).apply {
             action = ACTION_START
             putExtra(EXTRA_DELAY_MIN, delayMin)
             putExtra(EXTRA_TARGET_TEMP, targetTemp)
             putExtra(EXTRA_MODE, mode)
             putExtra(EXTRA_FAN, fan)
+            putExtra(EXTRA_SLEEP, sleep)
+            putExtra(EXTRA_QUIET, quiet)
         }
 
         /** 取消定时 */
@@ -79,7 +85,9 @@ class AcTimerService : Service() {
                 val targetTemp = intent.getIntExtra(EXTRA_TARGET_TEMP, 26)
                 val mode       = intent.getIntExtra(EXTRA_MODE, 0x20)
                 val fan        = intent.getIntExtra(EXTRA_FAN, 0xA0)
-                startTimer(delayMin, targetTemp, mode, fan)
+                val sleep      = intent.getBooleanExtra(EXTRA_SLEEP, false)
+                val quiet      = intent.getBooleanExtra(EXTRA_QUIET, false)
+                startTimer(delayMin, targetTemp, mode, fan, sleep, quiet)
             }
             ACTION_CANCEL -> stopTimer()
         }
@@ -94,7 +102,7 @@ class AcTimerService : Service() {
     }
 
     // ── Timer logic ──────────────────────────────────────────
-    private fun startTimer(delayMin: Int, targetTemp: Int, mode: Int, fan: Int) {
+    private fun startTimer(delayMin: Int, targetTemp: Int, mode: Int, fan: Int, sleep: Boolean = false, quiet: Boolean = false) {
         timerJob?.cancel()
         lastTargetTemp = targetTemp
         lastMode = mode
@@ -102,7 +110,12 @@ class AcTimerService : Service() {
         val totalSec = delayMin * 60
         val modeLabel = AcMode.fromCode(mode).label
         val fanLabel = AcFan.fromCode(fan).label
-        val summary = "$modeLabel ${targetTemp}°C · $fanLabel"
+        val extras = buildList {
+            if (sleep) add("睡眠")
+            if (quiet) add("静音")
+        }
+        val tag = if (extras.isNotEmpty()) " · ${extras.joinToString("+")}" else ""
+        val summary = "$modeLabel ${targetTemp}°C · $fanLabel$tag"
 
         // 前台通知
         startForeground(NOTIFICATION_ID, buildNotification("定时任务", "${delayMin}分钟后切换 $summary", totalSec))
@@ -125,7 +138,7 @@ class AcTimerService : Service() {
             // 时间到 → 发射 IR
             val ctx = this@AcTimerService
             try {
-                val data = auxAcData(powerOn = true, tempCelsius = targetTemp, mode = mode, fanSpeed = fan)
+                val data = auxAcData(powerOn = true, tempCelsius = targetTemp, mode = mode, fanSpeed = fan, sleep = sleep, quiet = quiet)
                 val pattern = bytesToNecPattern(data)
                 irManager?.transmit(38000, pattern)
                 Log.d("AcTimerService", "定时任务执行: 已切换 $summary")

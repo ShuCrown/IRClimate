@@ -44,6 +44,8 @@ data class AcTimerTask(
     val targetTemp: Int,
     val mode: AcMode = AcMode.COOL,
     val fan: AcFan = AcFan.AUTO,
+    val sleep: Boolean = false,
+    val quiet: Boolean = false,
     val repeatType: RepeatType = RepeatType.WORKDAY,
     val enabled: Boolean = true,
 )
@@ -52,5 +54,11 @@ fun AcTimerTask.timeText(): String =
     "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
 
 /** 任务下发状态的简短描述，用于列表/通知/事件 */
-fun AcTimerTask.settingSummary(): String =
-    "${mode.label} ${targetTemp}°C · ${fan.label}"
+fun AcTimerTask.settingSummary(): String {
+    val extras = buildList {
+        if (sleep) add("睡眠")
+        if (quiet) add("静音")
+    }
+    val tag = if (extras.isNotEmpty()) " · ${extras.joinToString("+")}" else ""
+    return "${mode.label} ${targetTemp}°C · ${fan.label}$tag"
+}

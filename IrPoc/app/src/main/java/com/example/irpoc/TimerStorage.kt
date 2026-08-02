@@ -36,6 +36,8 @@ class TimerStorage(context: Context) {
         put("targetTemp", task.targetTemp)
         put("mode", task.mode.name)
         put("fan", task.fan.name)
+        put("sleep", task.sleep)
+        put("quiet", task.quiet)
         put("repeatType", task.repeatType.name)
         put("enabled", task.enabled)
     }
@@ -48,6 +50,8 @@ class TimerStorage(context: Context) {
         targetTemp = obj.getInt("targetTemp"),
         mode = try { AcMode.valueOf(obj.optString("mode", AcMode.COOL.name)) } catch (e: Exception) { AcMode.COOL },
         fan = try { AcFan.valueOf(obj.optString("fan", AcFan.AUTO.name)) } catch (e: Exception) { AcFan.AUTO },
+        sleep = obj.optBoolean("sleep", false),
+        quiet = obj.optBoolean("quiet", false),
         repeatType = try { RepeatType.valueOf(obj.getString("repeatType")) } catch (e: Exception) { RepeatType.WORKDAY },
         enabled = obj.getBoolean("enabled"),
     )
