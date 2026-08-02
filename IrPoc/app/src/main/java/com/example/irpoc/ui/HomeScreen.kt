@@ -410,10 +410,9 @@ private fun TimerTaskItem(
                     )
                     Spacer(Modifier.height(4.dp))
                     if (task.enabled && remainingSec > 0) {
-                        val m = remainingSec / 60
-                        val s = remainingSec % 60
+                        val m = (remainingSec + 59) / 60
                         Text(
-                            "剩余 ${m}分${s.toString().padStart(2, '0')}秒 · ${task.targetTemp}°C · ${task.repeatType.label()}",
+                            "剩余 ${m}分钟 · ${task.targetTemp}°C · ${task.repeatType.label()}",
                             fontSize = 13.sp,
                             color = Teal
                         )

@@ -144,7 +144,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         if (target.timeInMillis <= now.timeInMillis) {
             target.add(java.util.Calendar.DAY_OF_MONTH, 1)
         }
-        val delayMin = ((target.timeInMillis - now.timeInMillis) / 60000).toInt()
+        val delayMin = ((target.timeInMillis - now.timeInMillis + 59999) / 60000).toInt()
         val intent = AcTimerService.startIntent(context, delayMin, task.targetTemp, currentMode, currentFan)
         ContextCompat.startForegroundService(context, intent)
         log("⏰ 启动定时: ${task.name} ${task.hour.toString().padStart(2,'0')}:${task.minute.toString().padStart(2,'0')} → ${task.targetTemp}°C (${delayMin}分钟后)")
