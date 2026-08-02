@@ -73,7 +73,7 @@ fun CreateTimerScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "新建定时",
+                        if (initialTask != null) "编辑定时" else "新建定时",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = DarkText
@@ -125,7 +125,7 @@ fun CreateTimerScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Teal)
                 ) {
-                    Text("保存定时", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(if (initialTask != null) "保存修改" else "保存定时", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

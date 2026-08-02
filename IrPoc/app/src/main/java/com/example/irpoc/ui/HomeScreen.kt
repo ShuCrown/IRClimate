@@ -1,6 +1,7 @@
 package com.example.irpoc.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +63,7 @@ fun HomeScreen(
     onPowerClick: () -> Unit,
     onAddTimer: () -> Unit,
     onTaskToggle: (AcTimerTask, Boolean) -> Unit,
+    onEditTask: (AcTimerTask) -> Unit,
     onDeleteTask: (AcTimerTask) -> Unit,
 ) {
     var taskToDelete by remember { mutableStateOf<AcTimerTask?>(null) }
@@ -172,6 +174,7 @@ fun HomeScreen(
                     TimerTaskItem(
                         task = task,
                         onToggle = { onTaskToggle(task, it) },
+                        onEdit = { onEditTask(task) },
                         onDelete = { taskToDelete = task }
                     )
                 }
@@ -358,10 +361,13 @@ private fun TempInfoColumn(label: String, value: String) {
 private fun TimerTaskItem(
     task: AcTimerTask,
     onToggle: (Boolean) -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)

@@ -89,6 +89,9 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         }
     }
 
+    // 编辑中的任务（null 表示新建模式）
+    var editingTask by remember { mutableStateOf<AcTimerTask?>(null) }
+
     // 每次列表变化时自动持久化
     fun persist() = storage.saveTasks(timerTasks.toList())
 
@@ -198,6 +201,10 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                 sendAc(isPowerOn, targetTemp, currentMode, currentFan)
             },
             onAddTimer = { currentScreen = Screen.Timer },
+            onEditTask = { task ->
+                editingTask = task
+                currentScreen = Screen.Timer
+            },
             onTaskToggle = { task, enabled ->
                 val idx = timerTasks.indexOfFirst { it.id == task.id }
                 if (idx >= 0) {
@@ -229,12 +236,27 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
             }
         )
         Screen.Timer -> CreateTimerScreen(
+            initialTask = editingTask,
             defaultTemp = targetTemp,
-            onBack = { currentScreen = Screen.Home },
+            onBack = {
+                editingTask = null
+                currentScreen = Screen.Home
+            },
             onSave = { task ->
-                timerTasks.add(task)
+                if (editingTask != null) {
+                    // 编辑模式：替换已有任务
+                    val idx = timerTasks.indexOfFirst { it.id == editingTask!!.id }
+                    if (idx >= 0) {
+                        timerTasks[idx] = task
+                    }
+                    addEvent(EventType.TASK_UPDATED, task.name, "${task.hour.toString().padStart(2,'0')}:${task.minute.toString().padStart(2,'0')} → ${task.targetTemp}°C")
+                } else {
+                    // 新建模式
+                    timerTasks.add(task)
+                    addEvent(EventType.TASK_CREATED, task.name, "${task.hour.toString().padStart(2,'0')}:${task.minute.toString().padStart(2,'0')} → ${task.targetTemp}°C")
+                }
                 persist()
-                addEvent(EventType.TASK_CREATED, task.name, "${task.hour.toString().padStart(2,'0')}:${task.minute.toString().padStart(2,'0')} → ${task.targetTemp}°C")
+                editingTask = null
                 currentScreen = Screen.Home
                 if (task.enabled) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -263,6 +285,10 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                 sendAc(isPowerOn, targetTemp, currentMode, currentFan)
             },
             onAddTimer = { currentScreen = Screen.Timer },
+            onEditTask = { task ->
+                editingTask = task
+                currentScreen = Screen.Timer
+            },
             onTaskToggle = { task, enabled ->
                 val idx = timerTasks.indexOfFirst { it.id == task.id }
                 if (idx >= 0) {
