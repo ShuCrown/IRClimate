@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -30,7 +31,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +64,33 @@ fun HomeScreen(
     onTaskToggle: (AcTimerTask, Boolean) -> Unit,
     onDeleteTask: (AcTimerTask) -> Unit,
 ) {
+    var taskToDelete by remember { mutableStateOf<AcTimerTask?>(null) }
+
+    // 删除确认对话框
+    taskToDelete?.let { task ->
+        AlertDialog(
+            onDismissRequest = { taskToDelete = null },
+            title = { Text("删除定时", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("确定要删除「${task.name}」(${task.timeText()}) 吗？\n此操作不可撤销。")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteTask(task)
+                        taskToDelete = null
+                    }
+                ) {
+                    Text("删除", color = Color(0xFFE53935))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { taskToDelete = null }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
     Scaffold(
         topBar = { HomeTopBar() },
         floatingActionButton = {
@@ -139,7 +172,7 @@ fun HomeScreen(
                     TimerTaskItem(
                         task = task,
                         onToggle = { onTaskToggle(task, it) },
-                        onDelete = { onDeleteTask(task) }
+                        onDelete = { taskToDelete = task }
                     )
                 }
             }
