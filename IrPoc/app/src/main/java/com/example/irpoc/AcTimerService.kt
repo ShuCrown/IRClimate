@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.ConsumerIrManager
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.irpoc.model.AcFan
@@ -25,6 +26,7 @@ class AcTimerService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var irManager: ConsumerIrManager? = null
     private var timerJob: Job? = null
+    private var wakeLock: PowerManager.WakeLock? = null
     private var lastTargetTemp = 0
     private var lastMode = 0
     private var lastFan = 0
@@ -76,6 +78,9 @@ class AcTimerService : Service() {
         super.onCreate()
         irManager = getSystemService(CONSUMER_IR_SERVICE) as ConsumerIrManager
         createChannel()
+        // 初始化 WakeLock（锁屏后保持 CPU 运行）
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AcTimerService:TimerWakeLock")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -97,6 +102,7 @@ class AcTimerService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        releaseWakeLock()
         scope.cancel()
         super.onDestroy()
     }
@@ -119,6 +125,9 @@ class AcTimerService : Service() {
 
         // 前台通知
         startForeground(NOTIFICATION_ID, buildNotification("定时任务", "${delayMin}分钟后切换 $summary", totalSec))
+
+        // 获取 WakeLock，防止锁屏后 CPU 休眠
+        wakeLock?.acquire(totalSec * 1000L + 10000L) // 超时 = 倒计时 + 10s 余量
 
         // 广播：已启动
         broadcastTick("started", totalSec)
@@ -152,6 +161,8 @@ class AcTimerService : Service() {
 
             // 广播：完成（携带最终下发状态）
             broadcastTick("done", 0, lastTargetTemp, lastMode, lastFan)
+            // 释放 WakeLock
+            releaseWakeLock()
             // 延迟一会儿再关，让用户看到通知
             delay(2000)
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -162,6 +173,7 @@ class AcTimerService : Service() {
     private fun stopTimer() {
         timerJob?.cancel()
         timerJob = null
+        releaseWakeLock()
         broadcastTick("cancelled", 0)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -186,6 +198,14 @@ class AcTimerService : Service() {
     }
 
     // ── Notification ─────────────────────────────────────────
+    private fun releaseWakeLock() {
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+            }
+        } catch (_: Exception) { }
+    }
+
     private fun createChannel() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
