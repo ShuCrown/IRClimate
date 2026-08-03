@@ -61,4 +61,37 @@ object NotificationHelper {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(NOTIFICATION_ID, notification)
     }
+
+    fun showFailed(
+        context: Context,
+        taskName: String,
+        targetTemp: Int,
+        mode: Int,
+        fan: Int,
+        sleep: Boolean = false,
+        quiet: Boolean = false,
+        reason: String? = null,
+    ) {
+        ensureChannel(context)
+        val modeLabel = AcMode.fromCode(mode).label
+        val fanLabel = AcFan.fromCode(fan).label
+        val extras = buildList {
+            if (sleep) add("睡眠")
+            if (quiet) add("静音")
+        }
+        val tag = if (extras.isNotEmpty()) " · ${extras.joinToString("+")}" else ""
+        val summary = "$modeLabel ${targetTemp}°C · $fanLabel$tag"
+        val text = "$taskName: 红外下发失败 ($summary)" + (reason?.let { " - $it" } ?: "")
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle("定时任务 ✗")
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIFICATION_ID, notification)
+    }
 }

@@ -22,18 +22,23 @@ class TimerReceiver : BroadcastReceiver() {
         val quiet = intent.getBooleanExtra(EXTRA_QUIET, false)
         val taskName = intent.getStringExtra(EXTRA_TASK_NAME) ?: "定时任务"
 
-        // 发射 IR
+        // 发射 IR，记录真实结果，避免"提示成功但空调没动"
+        var irOk = false
+        var failReason: String? = null
         try {
             val irManager = context.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
             if (irManager != null) {
                 val data = auxAcData(powerOn = true, tempCelsius = targetTemp, mode = mode, fanSpeed = fan, sleep = sleep, quiet = quiet)
                 val pattern = bytesToNecPattern(data)
                 irManager.transmit(38000, pattern)
+                irOk = true
                 Log.d("TimerReceiver", "✅ 定时执行: $taskName → ${targetTemp}°C")
             } else {
+                failReason = "无红外发射器"
                 Log.w("TimerReceiver", "⚠️ 无红外发射器，跳过 IR 发射")
             }
         } catch (e: Exception) {
+            failReason = e.message
             Log.e("TimerReceiver", "❌ IR 发射失败: ${e.message}")
         }
 
@@ -43,11 +48,16 @@ class TimerReceiver : BroadcastReceiver() {
             putExtra(EXTRA_TARGET_TEMP, targetTemp)
             putExtra(EXTRA_MODE, mode)
             putExtra(EXTRA_FAN, fan)
+            putExtra(EXTRA_IR_OK, irOk)
         }
         context.sendBroadcast(broadcast)
 
-        // 显示通知
-        NotificationHelper.showExecuted(context, taskName, targetTemp, mode, fan, sleep, quiet)
+        // 显示通知（按真实结果显示成功/失败）
+        if (irOk) {
+            NotificationHelper.showExecuted(context, taskName, targetTemp, mode, fan, sleep, quiet)
+        } else {
+            NotificationHelper.showFailed(context, taskName, targetTemp, mode, fan, sleep, quiet, failReason)
+        }
 
         // 如果是重复任务，调度下一次
         rescheduleIfRepeat(context, taskId, taskName, targetTemp, mode, fan, sleep, quiet)
@@ -99,6 +109,7 @@ class TimerReceiver : BroadcastReceiver() {
         const val EXTRA_SLEEP = "sleep"
         const val EXTRA_QUIET = "quiet"
         const val EXTRA_TASK_NAME = "task_name"
+        const val EXTRA_IR_OK = "ir_ok"
 
         fun pendingIntent(
             context: Context,
@@ -119,11 +130,13 @@ class TimerReceiver : BroadcastReceiver() {
                 putExtra(EXTRA_SLEEP, sleep)
                 putExtra(EXTRA_QUIET, quiet)
             }
+            // 用 FLAG_CANCEL_CURRENT 强制取消并重建 PendingIntent，
+            // 确保编辑任务后 extras 一定是最新值，避免读到旧参数导致 IR 发错码。
             return android.app.PendingIntent.getBroadcast(
                 context,
                 taskId.hashCode(),
                 intent,
-                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_CANCEL_CURRENT
             )
         }
     }
