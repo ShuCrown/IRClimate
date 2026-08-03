@@ -231,12 +231,16 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                 currentFan = fan
                 storage.saveAcState(AcState(true, temp, mode, fan))
 
-                // 更新任务状态（重置 alarmTime）
+                // 更新任务状态（计算下次 alarmTime）
                 val idx = timerTasks.indexOfFirst { it.id == taskId }
                 if (idx >= 0) {
                     val task = timerTasks[idx]
-                    // 单次任务置为未调度
-                    val newAlarmTime = if (task.repeatType == RepeatType.ONCE) 0L else task.alarmTime
+                    // 非 ONCE 任务重新计算下次执行时间，避免覆盖 rescheduleIfRepeat 已写入存储的正确值
+                    val newAlarmTime = if (task.repeatType == RepeatType.ONCE) {
+                        0L
+                    } else {
+                        nextAlarmTime(task.hour, task.minute, task.repeatType)
+                    }
                     timerTasks[idx] = task.copy(alarmTime = newAlarmTime)
                     persist()
                     val detail = "${AcMode.fromCode(mode).label} ${targetTemp}°C · ${AcFan.fromCode(fan).label}"
