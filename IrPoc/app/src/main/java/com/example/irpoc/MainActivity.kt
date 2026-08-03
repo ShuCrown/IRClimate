@@ -199,16 +199,16 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         object : BroadcastReceiver() {
             override fun onReceive(ctx: Context?, intent: Intent?) {
                 val taskId = intent?.getStringExtra(TimerReceiver.EXTRA_TASK_ID) ?: return
-                val targetTemp = intent.getIntExtra(TimerReceiver.EXTRA_TARGET_TEMP, 26)
+                val temp = intent.getIntExtra(TimerReceiver.EXTRA_TARGET_TEMP, 26)
                 val mode = intent.getIntExtra(TimerReceiver.EXTRA_MODE, 0x20)
                 val fan = intent.getIntExtra(TimerReceiver.EXTRA_FAN, 0xA0)
 
                 // 同步下发状态
                 isPowerOn = true
-                targetTemp = targetTemp
+                targetTemp = temp
                 currentMode = mode
                 currentFan = fan
-                storage.saveAcState(AcState(true, targetTemp, mode, fan))
+                storage.saveAcState(AcState(true, temp, mode, fan))
 
                 // 更新任务状态（重置 alarmTime）
                 val idx = timerTasks.indexOfFirst { it.id == taskId }
