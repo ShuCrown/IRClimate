@@ -28,8 +28,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -554,15 +552,39 @@ private fun ToggleRow(
             fontWeight = FontWeight.Medium,
             color = DarkText
         )
-        Switch(
+        CustomSwitch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = Teal,
-                uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = LightGrayText
-            )
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+/** 自定义开关，与主页任务启停开关保持一致 */
+@Composable
+private fun CustomSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val trackWidth = 48.dp
+    val trackHeight = 28.dp
+    val thumbSize = 24.dp
+    val horizontalPadding = (trackHeight - thumbSize) / 2
+
+    Box(
+        modifier = modifier
+            .size(width = trackWidth, height = trackHeight)
+            .clip(RoundedCornerShape(trackHeight / 2))
+            .background(if (checked) Teal else Color(0xFFD9D9D9))
+            .clickable { onCheckedChange(!checked) },
+        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(horizontal = horizontalPadding)
+                .size(thumbSize)
+                .clip(CircleShape)
+                .background(Color.White)
         )
     }
 }
