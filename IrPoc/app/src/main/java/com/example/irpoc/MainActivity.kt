@@ -212,7 +212,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         timerTasks.addAll(updated)
         persist()
         // 取消所有旧闹钟（通过服务统一处理）
-        context.startService(AcTimerService.scheduleIntent(context))
+        ContextCompat.startForegroundService(context, AcTimerService.scheduleIntent(context))
     }
 
     // TimerReceiver 广播监听
@@ -223,13 +223,16 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                 val temp = intent.getIntExtra(TimerReceiver.EXTRA_TARGET_TEMP, 26)
                 val mode = intent.getIntExtra(TimerReceiver.EXTRA_MODE, 0x20)
                 val fan = intent.getIntExtra(TimerReceiver.EXTRA_FAN, 0xA0)
+                val irOk = intent.getBooleanExtra(TimerReceiver.EXTRA_IR_OK, true)
 
-                // 同步下发状态
-                isPowerOn = true
-                targetTemp = temp
-                currentMode = mode
-                currentFan = fan
-                storage.saveAcState(AcState(true, temp, mode, fan))
+                // 仅在 IR 实际发射成功时才同步下发状态，避免 UI 与真实空调状态不一致
+                if (irOk) {
+                    isPowerOn = true
+                    targetTemp = temp
+                    currentMode = mode
+                    currentFan = fan
+                    storage.saveAcState(AcState(true, temp, mode, fan))
+                }
 
                 // 更新任务状态（计算下次 alarmTime）
                 val idx = timerTasks.indexOfFirst { it.id == taskId }
@@ -243,10 +246,14 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                     }
                     timerTasks[idx] = task.copy(alarmTime = newAlarmTime)
                     persist()
-                    val detail = "${AcMode.fromCode(mode).label} ${targetTemp}°C · ${AcFan.fromCode(fan).label}"
-                    addEvent(EventType.TASK_EXECUTED, task.name, "已切换 $detail")
+                    val detail = if (irOk) {
+                        "已切换 ${AcMode.fromCode(mode).label} ${temp}°C · ${AcFan.fromCode(fan).label}"
+                    } else {
+                        "红外下发失败"
+                    }
+                    addEvent(EventType.TASK_EXECUTED, task.name, detail)
                 }
-                log("✅ 定时执行: 已切换 $targetTemp°C")
+                log(if (irOk) "✅ 定时执行: 已切换 $temp°C" else "❌ 定时执行失败: IR 未发射")
             }
         }
     }
