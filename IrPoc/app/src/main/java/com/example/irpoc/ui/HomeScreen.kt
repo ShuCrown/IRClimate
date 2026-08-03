@@ -1,6 +1,5 @@
 package com.example.irpoc.ui
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,11 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -306,29 +301,12 @@ private fun AcStatusCard(
                             .background(if (isPowerOn) Teal else LightGrayText),
                         contentAlignment = Alignment.Center
                     ) {
-                        Canvas(modifier = Modifier.size(26.dp)) {
-                            val c = size.center
-                            val r = size.minDimension / 2f
-                            val strokeW = r * 0.25f
-                            // 半圆弧（底部，顶部开口）
-                            drawArc(
-                                color = Color.White,
-                                startAngle = -150f,
-                                sweepAngle = 120f,
-                                useCenter = false,
-                                topLeft = Offset(c.x - r * 0.65f, c.y - r * 0.2f),
-                                size = Size(r * 1.3f, r * 1.3f),
-                                style = Stroke(strokeW, cap = StrokeCap.Round)
-                            )
-                            // 顶部竖线
-                            drawLine(
-                                color = Color.White,
-                                start = Offset(c.x, c.y - r * 0.35f),
-                                end = Offset(c.x, c.y - r * 1.1f),
-                                strokeWidth = strokeW,
-                                cap = StrokeCap.Round
-                            )
-                        }
+                        Text(
+                            if (isPowerOn) "关" else "开",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                     }
                 }
             }
