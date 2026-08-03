@@ -61,6 +61,7 @@ class AcTimerService : Service() {
     // ── 调度 ────────────────────────────────────────────────
     private fun scheduleAll(tasks: List<AcTimerTask>) {
         val am = getSystemService(ALARM_SERVICE) as AlarmManager
+        val canExact = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S || am.canScheduleExactAlarms()
         for (task in tasks) {
             if (!task.enabled || task.alarmTime <= 0) continue
             val pi = TimerReceiver.pendingIntent(
@@ -68,7 +69,11 @@ class AcTimerService : Service() {
                 task.targetTemp, task.mode.code, task.fan.code,
                 task.sleep, task.quiet
             )
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, task.alarmTime, pi)
+            if (canExact) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, task.alarmTime, pi)
+            } else {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, task.alarmTime, pi)
+            }
             Log.d("AcTimerService", "📅 调度任务: ${task.name} @ ${task.timeText()}")
         }
     }

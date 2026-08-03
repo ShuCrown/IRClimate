@@ -149,6 +149,8 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
     /** 调度所有已启用任务：计算 alarmTime + 注册 AlarmManager + 启动前台服务 */
     fun scheduleTasks(tasks: List<AcTimerTask>) {
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        // Android 12+ 需要检查精确闹钟权限
+        val canExact = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S || am.canScheduleExactAlarms()
         for (task in tasks) {
             if (!task.enabled) continue
             val alarmTime = task.alarmTime
@@ -158,7 +160,11 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                 task.targetTemp, task.mode.code, task.fan.code,
                 task.sleep, task.quiet
             )
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pi)
+            if (canExact) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pi)
+            } else {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pi)
+            }
             log("⏰ 调度: ${task.name} @ ${task.timeText()}")
         }
         // 启动前台服务（常驻通知）

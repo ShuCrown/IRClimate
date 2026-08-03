@@ -77,7 +77,12 @@ class TimerReceiver : BroadcastReceiver() {
         // 注册下次闹钟
         val am = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
         val pi = TimerReceiver.pendingIntent(context, taskId, taskName, targetTemp, mode, fan, sleep, quiet)
-        am.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, nextAlarm, pi)
+        val canExact = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S || am.canScheduleExactAlarms()
+        if (canExact) {
+            am.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, nextAlarm, pi)
+        } else {
+            am.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, nextAlarm, pi)
+        }
         Log.d("TimerReceiver", "📅 重复任务下次调度: ${task.timeText()}")
     }
 
