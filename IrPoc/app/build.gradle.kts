@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
-// ── 版本号自动递增（配置阶段执行）────────────────────────────
+// ── 版本号读取（来源: version.properties，由 CI 工作流管理递增）──
 val versionFile = rootProject.file("version.properties")
 
 fun readVersionCode(): Int {
@@ -25,28 +25,10 @@ fun readVersionName(): String {
         ?.ifEmpty { null } ?: "1.0.0"
 }
 
-fun writeVersion(code: Int, name: String) {
-    versionFile.writeText("VERSION_CODE=$code\nVERSION_NAME=$name\n")
-}
+val appVersionCode = readVersionCode()
+val appVersionName = readVersionName()
 
-fun incrementVersionName(vn: String): String {
-    val parts = vn.split(".").toMutableList()
-    if (parts.size == 3) {
-        parts[2] = (parts[2].toInt() + 1).toString()
-    } else {
-        parts.add("1")
-    }
-    return parts.joinToString(".")
-}
-
-// 在配置阶段直接读取旧值、递增、写回，确保 defaultConfig 拿到最新值
-val oldVersionCode = readVersionCode()
-val oldVersionName = readVersionName()
-val newVersionCode = oldVersionCode + 1
-val newVersionName = incrementVersionName(oldVersionName)
-writeVersion(newVersionCode, newVersionName)
-
-println("📦 Version bumped: $oldVersionName → $newVersionName (code $newVersionCode)")
+println("📦 Current version: $appVersionName (code $appVersionCode)")
 
 android {
     namespace = "com.example.irpoc"
@@ -56,8 +38,8 @@ android {
         applicationId = "com.example.irpoc"
         minSdk = 24
         targetSdk = 34
-        versionCode = newVersionCode
-        versionName = newVersionName
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     signingConfigs {
