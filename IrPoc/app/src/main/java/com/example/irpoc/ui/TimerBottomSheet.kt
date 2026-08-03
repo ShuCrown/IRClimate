@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -40,9 +41,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -77,6 +84,9 @@ fun TimerBottomSheet(
     var repeatType by remember { mutableStateOf(initialTask?.repeatType ?: RepeatType.WORKDAY) }
 
     val maxSheetHeight = (LocalConfiguration.current.screenHeightDp * 0.9f).dp
+    val focusManager = LocalFocusManager.current
+    val hourFocusRequester = remember { FocusRequester() }
+    val minuteFocusRequester = remember { FocusRequester() }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -146,7 +156,9 @@ fun TimerBottomSheet(
                         TimeDigitField(
                             value = hour,
                             onValueChange = { hour = it.coerceIn(0, 23) },
-                            modifier = Modifier.width(96.dp)
+                            modifier = Modifier.width(96.dp),
+                            focusRequester = hourFocusRequester,
+                            onNext = { minuteFocusRequester.requestFocus() }
                         )
                         Text(
                             ":",
@@ -158,7 +170,9 @@ fun TimerBottomSheet(
                         TimeDigitField(
                             value = minute,
                             onValueChange = { minute = it.coerceIn(0, 59) },
-                            modifier = Modifier.width(96.dp)
+                            modifier = Modifier.width(96.dp),
+                            focusRequester = minuteFocusRequester,
+                            onNext = { focusManager.clearFocus() }
                         )
                     }
 
@@ -366,35 +380,68 @@ private fun TimeDigitField(
     value: Int,
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    focusRequester: FocusRequester = remember { FocusRequester() },
+    onNext: (() -> Unit)? = null,
 ) {
-    OutlinedTextField(
-        value = value.toString().padStart(2, '0'),
-        onValueChange = { s ->
-            val filtered = s.filter { it.isDigit() }.take(2)
-            val v = filtered.toIntOrNull()
-            if (v != null) {
-                onValueChange(v)
-            } else if (s.isEmpty()) {
-                onValueChange(0)
+    var isFocused by remember { mutableStateOf(false) }
+    var editingText by remember { mutableStateOf(value.toString().padStart(2, '0')) }
+    var selection by remember { mutableStateOf(TextRange(editingText.length)) }
+
+    LaunchedEffect(value) {
+        if (!isFocused) {
+            editingText = value.toString().padStart(2, '0')
+            selection = TextRange(editingText.length)
+        }
+    }
+
+    BasicTextField(
+        value = TextFieldValue(text = editingText, selection = selection),
+        onValueChange = { newValue ->
+            val digits = newValue.text.filter { it.isDigit() }.take(2)
+            editingText = digits
+            selection = TextRange(
+                start = newValue.selection.start.coerceIn(0, digits.length),
+                end = newValue.selection.end.coerceIn(0, digits.length)
+            )
+            onValueChange(digits.toIntOrNull() ?: 0)
+            if (digits.length >= 2) {
+                onNext?.invoke()
             }
         },
-        modifier = modifier,
+        modifier = modifier
+            .focusRequester(focusRequester)
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused && !isFocused) {
+                    isFocused = true
+                    editingText = value.toString().padStart(2, '0')
+                    selection = TextRange(0, editingText.length)
+                } else if (!focusState.isFocused && isFocused) {
+                    isFocused = false
+                    editingText = value.toString().padStart(2, '0')
+                    selection = TextRange(editingText.length)
+                }
+            },
         textStyle = TextStyle(
             fontSize = 36.sp,
             fontWeight = FontWeight.Bold,
-            color = DarkText,
+            color = if (isFocused) Teal else DarkText,
             textAlign = TextAlign.Center
         ),
         keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
         singleLine = true,
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = TealLight,
-            unfocusedContainerColor = BgGray,
-            focusedBorderColor = Teal,
-            unfocusedBorderColor = Teal,
-            cursorColor = Teal,
-        )
+        decorationBox = { innerTextField ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                innerTextField()
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .width(64.dp)
+                        .height(if (isFocused) 3.dp else 0.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(Teal)
+                )
+            }
+        }
     )
 }
 
