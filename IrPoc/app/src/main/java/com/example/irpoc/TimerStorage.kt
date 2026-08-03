@@ -1,6 +1,8 @@
 package com.example.irpoc
 
 import android.content.Context
+import com.example.irpoc.model.AcFan
+import com.example.irpoc.model.AcMode
 import com.example.irpoc.model.AcTimerTask
 import com.example.irpoc.model.RepeatType
 import org.json.JSONArray
@@ -32,8 +34,13 @@ class TimerStorage(context: Context) {
         put("hour", task.hour)
         put("minute", task.minute)
         put("targetTemp", task.targetTemp)
+        put("mode", task.mode.name)
+        put("fan", task.fan.name)
+        put("sleep", task.sleep)
+        put("quiet", task.quiet)
         put("repeatType", task.repeatType.name)
         put("enabled", task.enabled)
+        put("alarmTime", task.alarmTime)
     }
 
     private fun parseTask(obj: JSONObject): AcTimerTask = AcTimerTask(
@@ -42,8 +49,13 @@ class TimerStorage(context: Context) {
         hour = obj.getInt("hour"),
         minute = obj.getInt("minute"),
         targetTemp = obj.getInt("targetTemp"),
+        mode = try { AcMode.valueOf(obj.optString("mode", AcMode.COOL.name)) } catch (e: Exception) { AcMode.COOL },
+        fan = try { AcFan.valueOf(obj.optString("fan", AcFan.AUTO.name)) } catch (e: Exception) { AcFan.AUTO },
+        sleep = obj.optBoolean("sleep", false),
+        quiet = obj.optBoolean("quiet", false),
         repeatType = try { RepeatType.valueOf(obj.getString("repeatType")) } catch (e: Exception) { RepeatType.WORKDAY },
         enabled = obj.getBoolean("enabled"),
+        alarmTime = obj.optLong("alarmTime", 0),
     )
 
     companion object {

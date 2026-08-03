@@ -27,6 +27,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -45,15 +47,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.irpoc.model.AcFan
+import com.example.irpoc.model.AcMode
 import com.example.irpoc.model.AcTimerTask
 import com.example.irpoc.model.RepeatType
 import com.example.irpoc.model.label
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimerBottomSheet(
     initialTask: AcTimerTask? = null,
     defaultTemp: Int = 24,
+    defaultMode: AcMode = AcMode.COOL,
+    defaultFan: AcFan = AcFan.AUTO,
     onDismiss: () -> Unit,
     onSave: (AcTimerTask) -> Unit,
 ) {
@@ -63,6 +70,10 @@ fun TimerBottomSheet(
     var hour by remember { mutableIntStateOf(initialTask?.hour ?: 7) }
     var minute by remember { mutableIntStateOf(initialTask?.minute ?: 30) }
     var targetTemp by remember { mutableIntStateOf(initialTask?.targetTemp ?: defaultTemp) }
+    var mode by remember { mutableStateOf(initialTask?.mode ?: defaultMode) }
+    var fan by remember { mutableStateOf(initialTask?.fan ?: defaultFan) }
+    var sleep by remember { mutableStateOf(initialTask?.sleep ?: false) }
+    var quiet by remember { mutableStateOf(initialTask?.quiet ?: false) }
     var repeatType by remember { mutableStateOf(initialTask?.repeatType ?: RepeatType.WORKDAY) }
 
     val maxSheetHeight = (LocalConfiguration.current.screenHeightDp * 0.9f).dp
@@ -104,7 +115,7 @@ fun TimerBottomSheet(
                         value = name,
                         onValueChange = { name = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("定时调温") },
+                        placeholder = { Text("定时任务") },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -237,16 +248,100 @@ fun TimerBottomSheet(
                 }
             }
 
+            // 模式 + 风速
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("模式", fontSize = 14.sp, color = GrayText)
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AcMode.entries.forEach { m ->
+                            OptionChip(
+                                label = m.label,
+                                selected = mode == m,
+                                onClick = { mode = m },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(DividerGray)
+                    )
+                    Spacer(Modifier.height(16.dp))
+
+                    Text("风速", fontSize = 14.sp, color = GrayText)
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AcFan.entries.forEach { f ->
+                            OptionChip(
+                                label = f.label,
+                                selected = fan == f,
+                                onClick = { fan = f },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 睡眠 + 静音
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    ToggleRow(
+                        label = "睡眠模式",
+                        checked = sleep,
+                        onCheckedChange = { sleep = it }
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(DividerGray)
+                    )
+                    ToggleRow(
+                        label = "静音模式",
+                        checked = quiet,
+                        onCheckedChange = { quiet = it }
+                    )
+                }
+            }
+
             // 保存按钮
             Button(
                 onClick = {
                     onSave(
                         AcTimerTask(
-                            name = name.ifBlank { "定时调温" },
+                            id = initialTask?.id ?: UUID.randomUUID().toString(),
+                            name = name.ifBlank { "定时任务" },
                             hour = hour,
                             minute = minute,
                             targetTemp = targetTemp,
-                            repeatType = repeatType
+                            mode = mode,
+                            fan = fan,
+                            sleep = sleep,
+                            quiet = quiet,
+                            repeatType = repeatType,
+                            enabled = initialTask?.enabled ?: true,
                         )
                     )
                 },
@@ -349,6 +444,68 @@ private fun RepeatChip(
             label,
             fontSize = 14.sp,
             color = if (selected) Teal else GrayText
+        )
+    }
+}
+
+/** 通用选项 chip，支持 weight 自适应宽度 */
+@Composable
+private fun OptionChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .height(36.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (selected) TealLight else Color(0xFFF7F7F7))
+            .border(
+                width = if (selected) 1.dp else 0.dp,
+                color = if (selected) Teal else Color.Transparent,
+                shape = RoundedCornerShape(18.dp)
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            fontSize = 13.sp,
+            color = if (selected) Teal else GrayText
+        )
+    }
+}
+
+/** 开关行：标签 + Switch */
+@Composable
+private fun ToggleRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = DarkText
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = Teal,
+                uncheckedThumbColor = Color.White,
+                uncheckedTrackColor = LightGrayText
+            )
         )
     }
 }

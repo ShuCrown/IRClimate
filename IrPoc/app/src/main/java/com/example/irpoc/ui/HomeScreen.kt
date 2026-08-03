@@ -36,7 +36,9 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -50,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.example.irpoc.model.AcTimerTask
 import com.example.irpoc.model.TimerEvent
 import com.example.irpoc.model.label
+import com.example.irpoc.model.settingSummary
 import com.example.irpoc.model.timeText
 
 @Composable
@@ -60,7 +63,6 @@ fun HomeScreen(
     isPowerOn: Boolean,
     timerTasks: List<AcTimerTask>,
     timerEvents: List<TimerEvent> = emptyList(),
-    remainingSec: Int = 0,
     onMarkAllRead: () -> Unit = {},
     onPowerClick: () -> Unit,
     onAddTimer: () -> Unit,
@@ -71,6 +73,15 @@ fun HomeScreen(
     var taskToDelete by remember { mutableStateOf<AcTimerTask?>(null) }
     var showMessageSheet by remember { mutableStateOf(false) }
     val unreadCount = remember(timerEvents) { timerEvents.count { !it.read } }
+
+    // 每秒刷新，使剩余时间实时更新
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(1000)
+            now = System.currentTimeMillis()
+        }
+    }
 
     // 删除确认对话框
     taskToDelete?.let { task ->
@@ -180,7 +191,7 @@ fun HomeScreen(
                 items(timerTasks, key = { it.id }) { task ->
                     TimerTaskItem(
                         task = task,
-                        remainingSec = if (task.enabled) remainingSec else 0,
+                        now = now,
                         onToggle = { onTaskToggle(task, it) },
                         onEdit = { onEditTask(task) },
                         onDelete = { taskToDelete = task }
@@ -301,8 +312,9 @@ private fun AcStatusCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "⏻",
-                            fontSize = 24.sp,
+                            if (isPowerOn) "关" else "开",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                     }
@@ -352,11 +364,16 @@ private fun TempInfoColumn(label: String, value: String) {
 @Composable
 private fun TimerTaskItem(
     task: AcTimerTask,
-    remainingSec: Int = 0,
+    now: Long,
     onToggle: (Boolean) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    // 从 alarmTime 计算剩余秒数
+    val remainingSec = if (task.enabled && task.alarmTime > 0) {
+        ((task.alarmTime - now) / 1000).toInt().coerceAtLeast(0)
+    } else 0
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -400,14 +417,14 @@ private fun TimerTaskItem(
                             "剩余 ${totalMin} 分钟"
                         }
                         Text(
-                            "$remainText · ${task.targetTemp}°C · ${task.repeatType.label()}",
+                            "$remainText · ${task.settingSummary()} · ${task.repeatType.label()}",
                             fontSize = 13.sp,
                             color = Teal,
                             maxLines = 1
                         )
                     } else {
                         Text(
-                            "${task.targetTemp}°C · ${task.repeatType.label()}",
+                            "${task.settingSummary()} · ${task.repeatType.label()}",
                             fontSize = 13.sp,
                             color = GrayText,
                             maxLines = 1
