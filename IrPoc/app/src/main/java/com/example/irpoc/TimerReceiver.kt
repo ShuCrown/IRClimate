@@ -24,11 +24,15 @@ class TimerReceiver : BroadcastReceiver() {
 
         // 发射 IR
         try {
-            val irManager = context.getSystemService(Context.CONSUMER_IR_SERVICE) as ConsumerIrManager
-            val data = auxAcData(powerOn = true, tempCelsius = targetTemp, mode = mode, fanSpeed = fan, sleep = sleep, quiet = quiet)
-            val pattern = bytesToNecPattern(data)
-            irManager.transmit(38000, pattern)
-            Log.d("TimerReceiver", "✅ 定时执行: $taskName → ${targetTemp}°C")
+            val irManager = context.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
+            if (irManager != null) {
+                val data = auxAcData(powerOn = true, tempCelsius = targetTemp, mode = mode, fanSpeed = fan, sleep = sleep, quiet = quiet)
+                val pattern = bytesToNecPattern(data)
+                irManager.transmit(38000, pattern)
+                Log.d("TimerReceiver", "✅ 定时执行: $taskName → ${targetTemp}°C")
+            } else {
+                Log.w("TimerReceiver", "⚠️ 无红外发射器，跳过 IR 发射")
+            }
         } catch (e: Exception) {
             Log.e("TimerReceiver", "❌ IR 发射失败: ${e.message}")
         }

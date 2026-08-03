@@ -104,7 +104,11 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
     val fanName = remember(currentFan) { AcFan.fromCode(currentFan).label }
 
     val irManager = remember {
-        context.getSystemService(Context.CONSUMER_IR_SERVICE) as ConsumerIrManager
+        try {
+            context.getSystemService(Context.CONSUMER_IR_SERVICE) as? ConsumerIrManager
+        } catch (_: Exception) {
+            null
+        }
     }
 
     fun now() = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date())
@@ -115,9 +119,20 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
 
     fun sendAc(powerOn: Boolean, temp: Int, mode: Int, fan: Int) {
         try {
+            val mgr = irManager
+            if (mgr == null) {
+                log("⚠️ 无红外发射器，仅更新状态")
+                // 即使无红外也更新状态
+                isPowerOn = powerOn
+                targetTemp = temp
+                currentMode = mode
+                currentFan = fan
+                storage.saveAcState(AcState(powerOn, temp, mode, fan))
+                return
+            }
             val data = auxAcData(powerOn, temp, mode, fan)
             val pattern = bytesToNecPattern(data)
-            irManager.transmit(38000, pattern)
+            mgr.transmit(38000, pattern)
             val mName = AcMode.fromCode(mode).label
             val fName = AcFan.fromCode(fan).label
             log("✅ AUX: ${if (powerOn) "开机" else "关机"} ${temp}°C $mName $fName")
