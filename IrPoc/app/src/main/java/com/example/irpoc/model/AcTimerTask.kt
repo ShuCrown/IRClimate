@@ -48,6 +48,8 @@ data class AcTimerTask(
     val quiet: Boolean = false,
     val repeatType: RepeatType = RepeatType.WORKDAY,
     val enabled: Boolean = true,
+    /** 最近一次调度的执行时间戳（毫秒），0 表示未调度 */
+    val alarmTime: Long = 0,
 )
 
 fun AcTimerTask.timeText(): String =

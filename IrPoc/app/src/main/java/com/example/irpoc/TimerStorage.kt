@@ -40,6 +40,7 @@ class TimerStorage(context: Context) {
         put("quiet", task.quiet)
         put("repeatType", task.repeatType.name)
         put("enabled", task.enabled)
+        put("alarmTime", task.alarmTime)
     }
 
     private fun parseTask(obj: JSONObject): AcTimerTask = AcTimerTask(
@@ -54,6 +55,7 @@ class TimerStorage(context: Context) {
         quiet = obj.optBoolean("quiet", false),
         repeatType = try { RepeatType.valueOf(obj.getString("repeatType")) } catch (e: Exception) { RepeatType.WORKDAY },
         enabled = obj.getBoolean("enabled"),
+        alarmTime = obj.optLong("alarmTime", 0),
     )
 
     companion object {

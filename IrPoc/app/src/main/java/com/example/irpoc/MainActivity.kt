@@ -1,6 +1,7 @@
 package com.example.irpoc
 
 import android.Manifest
+import android.app.AlarmManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -36,6 +37,7 @@ import com.example.irpoc.model.AcFan
 import com.example.irpoc.model.AcMode
 import com.example.irpoc.model.AcTimerTask
 import com.example.irpoc.model.EventType
+import com.example.irpoc.model.RepeatType
 import com.example.irpoc.model.TimerEvent
 import com.example.irpoc.model.settingSummary
 import com.example.irpoc.model.timeText
@@ -98,10 +100,6 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
     // 每次列表变化时自动持久化
     fun persist() = storage.saveTasks(timerTasks.toList())
 
-    // Service 广播监听
-    var timerActive by remember { mutableStateOf(false) }
-    var timerRemainingSec by remember { mutableIntStateOf(0) }
-
     val modeName = remember(currentMode) { AcMode.fromCode(currentMode).label }
     val fanName = remember(currentFan) { AcFan.fromCode(currentFan).label }
 
@@ -134,69 +132,110 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         }
     }
 
-    fun startTimerTask(task: AcTimerTask) {
-        val now = java.util.Calendar.getInstance()
-        val target = java.util.Calendar.getInstance().apply {
-            set(java.util.Calendar.HOUR_OF_DAY, task.hour)
-            set(java.util.Calendar.MINUTE, task.minute)
-            set(java.util.Calendar.SECOND, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
+    /** 计算任务的下次执行时间并返回 alarmTime */
+    fun computeAlarmTime(task: AcTimerTask): Long {
+        if (!task.enabled || task.repeatType == RepeatType.ONCE) {
+            // 单次任务且已执行过（alarmTime 已过时），不再调度
+            val now = System.currentTimeMillis()
+            if (task.alarmTime > now) return task.alarmTime
+            return 0
         }
-        if (target.timeInMillis <= now.timeInMillis) {
-            target.add(java.util.Calendar.DAY_OF_MONTH, 1)
-        }
-        val delayMin = ((target.timeInMillis - now.timeInMillis + 59999) / 60000).toInt()
-        val intent = AcTimerService.startIntent(
-            context, delayMin, task.targetTemp, task.mode.code, task.fan.code,
-            task.sleep, task.quiet
-        )
-        ContextCompat.startForegroundService(context, intent)
-        log("⏰ 启动定时: ${task.name} ${task.timeText()} → ${task.settingSummary()} (${delayMin}分钟后)")
+        // 如果已有有效的 alarmTime 且未过期，保留
+        val now = System.currentTimeMillis()
+        if (task.alarmTime > now) return task.alarmTime
+        return nextAlarmTime(task.hour, task.minute, task.repeatType)
     }
 
+    /** 调度所有已启用任务：计算 alarmTime + 注册 AlarmManager + 启动前台服务 */
+    fun scheduleTasks(tasks: List<AcTimerTask>) {
+        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        for (task in tasks) {
+            if (!task.enabled) continue
+            val alarmTime = task.alarmTime
+            if (alarmTime <= 0 || alarmTime <= System.currentTimeMillis()) continue
+            val pi = TimerReceiver.pendingIntent(
+                context, task.id, task.name,
+                task.targetTemp, task.mode.code, task.fan.code,
+                task.sleep, task.quiet
+            )
+            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pi)
+            log("⏰ 调度: ${task.name} @ ${task.timeText()}")
+        }
+        // 启动前台服务（常驻通知）
+        ContextCompat.startForegroundService(context, AcTimerService.scheduleIntent(context))
+    }
+
+    /** 取消单个任务的闹钟 */
+    fun cancelTaskAlarm(taskId: String) {
+        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val pi = android.app.PendingIntent.getBroadcast(
+            context, taskId.hashCode(),
+            Intent(context, TimerReceiver::class.java),
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_NO_CREATE
+        )
+        pi?.let { am.cancel(it) }
+    }
+
+    /** 计算 alarmTime 并调度所有启用的任务 */
+    fun refreshAllSchedules() {
+        // 先更新所有任务的 alarmTime
+        val updated = timerTasks.map { task ->
+            if (task.enabled) {
+                val alarmTime = computeAlarmTime(task)
+                task.copy(alarmTime = alarmTime)
+            } else {
+                task
+            }
+        }
+        timerTasks.clear()
+        timerTasks.addAll(updated)
+        persist()
+        // 取消所有旧闹钟（通过服务统一处理）
+        context.startService(AcTimerService.scheduleIntent(context))
+    }
+
+    // TimerReceiver 广播监听
     val timerReceiver = remember {
         object : BroadcastReceiver() {
             override fun onReceive(ctx: Context?, intent: Intent?) {
-                val status = intent?.getStringExtra(AcTimerService.EXTRA_STATUS) ?: return
-                when (status) {
-                    "started" -> {
-                        timerActive = true
-                        timerRemainingSec = intent.getIntExtra(AcTimerService.EXTRA_REMAINING, 0)
-                        // 查找当前启用的任务作为事件来源
-                        val taskName = timerTasks.find { it.enabled }?.name ?: "定时任务"
-                        addEvent(EventType.TASK_PUBLISHED, taskName, "后台倒计时 ${timerRemainingSec / 60} 分钟")
-                    }
-                    "running" -> timerRemainingSec = intent.getIntExtra(AcTimerService.EXTRA_REMAINING, 0)
-                    "done" -> {
-                        timerActive = false
-                        timerRemainingSec = 0
-                        // 同步定时执行后的下发状态
-                        val t = intent.getIntExtra(AcTimerService.EXTRA_TARGET_TEMP, targetTemp)
-                        val m = intent.getIntExtra(AcTimerService.EXTRA_MODE, currentMode)
-                        val f = intent.getIntExtra(AcTimerService.EXTRA_FAN, currentFan)
-                        isPowerOn = true
-                        targetTemp = t
-                        currentMode = m
-                        currentFan = f
-                        storage.saveAcState(AcState(true, t, m, f))
-                        val taskName = timerTasks.find { it.enabled }?.name ?: "定时任务"
-                        val detail = "${AcMode.fromCode(m).label} ${t}°C · ${AcFan.fromCode(f).label}"
-                        addEvent(EventType.TASK_EXECUTED, taskName, "已切换 $detail")
-                    }
-                    "cancelled" -> {
-                        timerActive = false
-                        timerRemainingSec = 0
-                        val taskName = timerTasks.find { it.enabled }?.name ?: "定时任务"
-                        addEvent(EventType.TASK_CANCELLED, taskName, "用户取消")
-                    }
+                val taskId = intent?.getStringExtra(TimerReceiver.EXTRA_TASK_ID) ?: return
+                val targetTemp = intent.getIntExtra(TimerReceiver.EXTRA_TARGET_TEMP, 26)
+                val mode = intent.getIntExtra(TimerReceiver.EXTRA_MODE, 0x20)
+                val fan = intent.getIntExtra(TimerReceiver.EXTRA_FAN, 0xA0)
+
+                // 同步下发状态
+                isPowerOn = true
+                targetTemp = targetTemp
+                currentMode = mode
+                currentFan = fan
+                storage.saveAcState(AcState(true, targetTemp, mode, fan))
+
+                // 更新任务状态（重置 alarmTime）
+                val idx = timerTasks.indexOfFirst { it.id == taskId }
+                if (idx >= 0) {
+                    val task = timerTasks[idx]
+                    // 单次任务置为未调度
+                    val newAlarmTime = if (task.repeatType == RepeatType.ONCE) 0L else task.alarmTime
+                    timerTasks[idx] = task.copy(alarmTime = newAlarmTime)
+                    persist()
+                    val detail = "${AcMode.fromCode(mode).label} ${targetTemp}°C · ${AcFan.fromCode(fan).label}"
+                    addEvent(EventType.TASK_EXECUTED, task.name, "已切换 $detail")
                 }
+                log("✅ 定时执行: 已切换 $targetTemp°C")
             }
         }
     }
 
     LaunchedEffect(Unit) {
-        val filter = IntentFilter(AcTimerService.ACTION_TICK)
+        val filter = IntentFilter(TimerReceiver.ACTION_TIMER_EXECUTED)
         context.registerReceiver(timerReceiver, filter, Context.RECEIVER_EXPORTED)
+
+        // 应用启动时重调度所有未过期的任务（应对手机重启）
+        val tasks = storage.loadTasks()
+        val hasPending = tasks.any { it.enabled && it.alarmTime > 0 && it.alarmTime > System.currentTimeMillis() }
+        if (hasPending) {
+            ContextCompat.startForegroundService(context, AcTimerService.scheduleIntent(context))
+        }
     }
     DisposableEffect(Unit) {
         onDispose { context.unregisterReceiver(timerReceiver) }
@@ -245,7 +284,6 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         isPowerOn = isPowerOn,
         timerTasks = timerTasks,
         timerEvents = timerEvents,
-        remainingSec = timerRemainingSec,
         onMarkAllRead = {
             for (i in timerEvents.indices) {
                 if (!timerEvents[i].read) {
@@ -265,10 +303,13 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         onTaskToggle = { task, enabled ->
             val idx = timerTasks.indexOfFirst { it.id == task.id }
             if (idx >= 0) {
-                val updated = task.copy(enabled = enabled)
-                timerTasks[idx] = updated
-                persist()
                 if (enabled) {
+                    // 启用：计算 alarmTime → 调度
+                    val alarmTime = nextAlarmTime(task.hour, task.minute, task.repeatType)
+                    val updated = task.copy(enabled = true, alarmTime = alarmTime)
+                    timerTasks[idx] = updated
+                    persist()
+                    scheduleTasks(listOf(updated))
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
                             != PackageManager.PERMISSION_GRANTED
@@ -276,19 +317,24 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     }
-                    addEvent(EventType.TASK_PUBLISHED, task.name, "后台倒计时中")
-                    startTimerTask(updated)
+                    addEvent(EventType.TASK_PUBLISHED, task.name, "已调度")
                 } else {
+                    // 禁用：取消闹钟
+                    cancelTaskAlarm(task.id)
+                    val updated = task.copy(enabled = false, alarmTime = 0)
+                    timerTasks[idx] = updated
+                    persist()
                     addEvent(EventType.TASK_CANCELLED, task.name, "用户关闭")
-                    context.stopService(AcTimerService.cancelIntent(context))
+                    context.startService(AcTimerService.cancelIntent(context, task.id))
                 }
             }
         },
         onDeleteTask = { task ->
+            cancelTaskAlarm(task.id)
             timerTasks.removeAll { it.id == task.id }
             persist()
             addEvent(EventType.TASK_CANCELLED, task.name, "已删除")
-            context.stopService(AcTimerService.cancelIntent(context))
+            context.startService(AcTimerService.cancelIntent(context, task.id))
             log("🗑 删除定时: ${task.name}")
         }
     )
@@ -328,8 +374,15 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     }
-                    addEvent(EventType.TASK_PUBLISHED, task.name, "后台倒计时中")
-                    startTimerTask(task)
+                    // 计算 alarmTime 并调度
+                    val alarmTime = nextAlarmTime(task.hour, task.minute, task.repeatType)
+                    val idx = timerTasks.indexOfFirst { it.id == task.id }
+                    if (idx >= 0) {
+                        timerTasks[idx] = task.copy(alarmTime = alarmTime)
+                        persist()
+                    }
+                    scheduleTasks(listOf(task.copy(alarmTime = alarmTime)))
+                    addEvent(EventType.TASK_PUBLISHED, task.name, "已调度")
                 }
             }
         )
