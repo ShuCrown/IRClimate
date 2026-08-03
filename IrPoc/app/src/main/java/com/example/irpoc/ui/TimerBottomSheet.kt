@@ -387,6 +387,8 @@ private fun TimeDigitField(
     var isFocused by remember { mutableStateOf(false) }
     var editingText by remember { mutableStateOf(value.toString().padStart(2, '0')) }
     var selection by remember { mutableStateOf(TextRange(editingText.length)) }
+    // 标记程序化更新（聚焦/失焦时同步），防止 onValueChange 误触发自动跳转
+    var programmaticText by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(value) {
         if (!isFocused) {
@@ -399,13 +401,16 @@ private fun TimeDigitField(
         value = TextFieldValue(text = editingText, selection = selection),
         onValueChange = { newValue ->
             val digits = newValue.text.filter { it.isDigit() }.take(2)
+            val isProgrammatic = digits == programmaticText
+            programmaticText = null
             editingText = digits
             selection = TextRange(
                 start = newValue.selection.start.coerceIn(0, digits.length),
                 end = newValue.selection.end.coerceIn(0, digits.length)
             )
             onValueChange(digits.toIntOrNull() ?: 0)
-            if (digits.length >= 2) {
+            // 仅在用户实际输入满 2 位时才自动跳转，跳过程序化同步
+            if (digits.length >= 2 && !isProgrammatic) {
                 onNext?.invoke()
             }
         },
@@ -414,12 +419,16 @@ private fun TimeDigitField(
             .onFocusChanged { focusState ->
                 if (focusState.isFocused && !isFocused) {
                     isFocused = true
-                    editingText = value.toString().padStart(2, '0')
-                    selection = TextRange(0, editingText.length)
+                    val newText = value.toString().padStart(2, '0')
+                    programmaticText = newText
+                    editingText = newText
+                    selection = TextRange(0, newText.length)
                 } else if (!focusState.isFocused && isFocused) {
                     isFocused = false
-                    editingText = value.toString().padStart(2, '0')
-                    selection = TextRange(editingText.length)
+                    val newText = value.toString().padStart(2, '0')
+                    programmaticText = newText
+                    editingText = newText
+                    selection = TextRange(newText.length)
                 }
             },
         textStyle = TextStyle(
