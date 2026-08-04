@@ -1,10 +1,8 @@
 package com.example.irpoc
 
-import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
@@ -18,7 +16,7 @@ import com.example.irpoc.model.timeText
  * 前台服务：管理定时任务闹钟 + 持续通知。
  *
  * 职责：
- * 1. 用 AlarmManager.setExactAndAllowWhileIdle() 调度所有已启用任务
+ * 1. 通过 [AlarmScheduler]（setAlarmClock）调度所有已启用任务，可在锁屏/Doze 下可靠唤醒
  * 2. 显示通知栏常驻通知，提示最近一次任务时间
  * 3. 取消时移除闹钟并关闭通知
  */
@@ -60,34 +58,15 @@ class AcTimerService : Service() {
 
     // ── 调度 ────────────────────────────────────────────────
     private fun scheduleAll(tasks: List<AcTimerTask>) {
-        val am = getSystemService(ALARM_SERVICE) as AlarmManager
-        val canExact = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S || am.canScheduleExactAlarms()
         for (task in tasks) {
             if (!task.enabled || task.alarmTime <= 0) continue
-            val pi = TimerReceiver.pendingIntent(
-                this, task.id, task.name,
-                task.targetTemp, task.mode.code, task.fan.code,
-                task.sleep, task.quiet
-            )
-            if (canExact) {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, task.alarmTime, pi)
-            } else {
-                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, task.alarmTime, pi)
-            }
-            Log.d("AcTimerService", "📅 调度任务: ${task.name} @ ${task.timeText()}")
+            AlarmScheduler.schedule(this, task, task.alarmTime)
         }
     }
 
     private fun cancelAlarm(taskId: String?) {
-        val am = getSystemService(ALARM_SERVICE) as AlarmManager
         if (taskId != null) {
-            val pi = PendingIntent.getBroadcast(
-                this, taskId.hashCode(),
-                Intent(this, TimerReceiver::class.java),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE
-            )
-            pi?.let { am.cancel(it) }
-            Log.d("AcTimerService", "🗑 取消闹钟: $taskId")
+            AlarmScheduler.cancel(this, taskId)
         }
     }
 

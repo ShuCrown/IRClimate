@@ -1,7 +1,6 @@
 package com.example.irpoc
 
 import android.Manifest
-import android.app.AlarmManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -161,25 +160,26 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         return nextAlarmTime(task.hour, task.minute, task.repeatType)
     }
 
-    /** 调度所有已启用任务：计算 alarmTime + 注册 AlarmManager + 启动前台服务 */
+    /** 调度所有已启用任务：注册 AlarmManager + 启动前台服务 */
     fun scheduleTasks(tasks: List<AcTimerTask>) {
-        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        // Android 12+ 需要检查精确闹钟权限
-        val canExact = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S || am.canScheduleExactAlarms()
+        // Android 12+ 未授权精确闹钟权限时，引导用户跳转设置页。
+        // 注意：setAlarmClock() 不需要 SCHEDULE_EXACT_ALARM 权限也能精确触发，
+        // 但保留权限引导可避免老设备/降级路径上的限制。
+        if (!AlarmScheduler.canScheduleExactAlarms(context)) {
+            try {
+                val intent = Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                intent.data = android.net.Uri.parse("package:${context.packageName}")
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                log("⚠️ 无法跳转精确闹钟权限页: ${e.message}")
+            }
+        }
         for (task in tasks) {
             if (!task.enabled) continue
             val alarmTime = task.alarmTime
             if (alarmTime <= 0 || alarmTime <= System.currentTimeMillis()) continue
-            val pi = TimerReceiver.pendingIntent(
-                context, task.id, task.name,
-                task.targetTemp, task.mode.code, task.fan.code,
-                task.sleep, task.quiet
-            )
-            if (canExact) {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pi)
-            } else {
-                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pi)
-            }
+            AlarmScheduler.schedule(context, task, alarmTime)
             log("⏰ 调度: ${task.name} @ ${task.timeText()}")
         }
         // 启动前台服务（常驻通知）
@@ -188,13 +188,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
 
     /** 取消单个任务的闹钟 */
     fun cancelTaskAlarm(taskId: String) {
-        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val pi = android.app.PendingIntent.getBroadcast(
-            context, taskId.hashCode(),
-            Intent(context, TimerReceiver::class.java),
-            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_NO_CREATE
-        )
-        pi?.let { am.cancel(it) }
+        AlarmScheduler.cancel(context, taskId)
     }
 
     /** 计算 alarmTime 并调度所有启用的任务 */
