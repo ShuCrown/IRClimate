@@ -13,7 +13,10 @@ import com.example.irpoc.model.AcMode
 object NotificationHelper {
 
     private const val CHANNEL_ID = "ac_timer_channel"
-    private const val NOTIFICATION_ID = 1001
+    // 注意：此处通知 ID 不能与 AcTimerService.NOTIFICATION_ID (1001) 重合，
+    // 否则执行通知会覆盖前台服务常驻通知，导致系统认为 Service 不再前台而被回收。
+    // 用一个完全独立的 ID 范围，且每次执行用不同 ID，便于多条历史并存。
+    private const val EXEC_NOTIFICATION_BASE_ID = 2000
 
     fun ensureChannel(context: Context) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -33,6 +36,7 @@ object NotificationHelper {
 
     fun showExecuted(
         context: Context,
+        taskId: String,
         taskName: String,
         targetTemp: Int,
         mode: Int,
@@ -59,11 +63,12 @@ object NotificationHelper {
             .build()
 
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(NOTIFICATION_ID, notification)
+        nm.notify(notificationIdFor(taskId), notification)
     }
 
     fun showFailed(
         context: Context,
+        taskId: String,
         taskName: String,
         targetTemp: Int,
         mode: Int,
@@ -92,6 +97,12 @@ object NotificationHelper {
             .build()
 
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(NOTIFICATION_ID, notification)
+        nm.notify(notificationIdFor(taskId), notification)
+    }
+
+    /** 不同任务用不同通知 ID，避免同名任务互相覆盖；范围避开前台服务用的 1001。 */
+    private fun notificationIdFor(taskId: String): Int {
+        val hash = taskId.hashCode() and 0x7FFFFFFF
+        return EXEC_NOTIFICATION_BASE_ID + (hash % 1000)
     }
 }

@@ -54,9 +54,9 @@ class TimerReceiver : BroadcastReceiver() {
 
         // 显示通知（按真实结果显示成功/失败）
         if (irOk) {
-            NotificationHelper.showExecuted(context, taskName, targetTemp, mode, fan, sleep, quiet)
+            NotificationHelper.showExecuted(context, taskId, taskName, targetTemp, mode, fan, sleep, quiet)
         } else {
-            NotificationHelper.showFailed(context, taskName, targetTemp, mode, fan, sleep, quiet, failReason)
+            NotificationHelper.showFailed(context, taskId, taskName, targetTemp, mode, fan, sleep, quiet, failReason)
         }
 
         // 如果是重复任务，调度下一次
@@ -88,15 +88,8 @@ class TimerReceiver : BroadcastReceiver() {
             storage.saveTasks(mutable)
         }
 
-        // 注册下次闹钟
-        val am = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-        val pi = TimerReceiver.pendingIntent(context, taskId, taskName, targetTemp, mode, fan, sleep, quiet)
-        val canExact = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S || am.canScheduleExactAlarms()
-        if (canExact) {
-            am.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, nextAlarm, pi)
-        } else {
-            am.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, nextAlarm, pi)
-        }
+        // 用统一调度入口（setAlarmClock，不受 Doze 配额限制）
+        AlarmScheduler.schedule(context, updated, nextAlarm)
         Log.d("TimerReceiver", "📅 重复任务下次调度: ${task.timeText()}")
     }
 
@@ -130,13 +123,14 @@ class TimerReceiver : BroadcastReceiver() {
                 putExtra(EXTRA_SLEEP, sleep)
                 putExtra(EXTRA_QUIET, quiet)
             }
-            // 用 FLAG_CANCEL_CURRENT 强制取消并重建 PendingIntent，
-            // 确保编辑任务后 extras 一定是最新值，避免读到旧参数导致 IR 发错码。
+            // 用 FLAG_UPDATE_CURRENT 保留已注册的闹钟关联，仅更新 extras。
+            // 此前用 FLAG_CANCEL_CURRENT 会连带取消 AlarmManager 已注册的闹钟，
+            // 导致 scheduleAll() 调用时序错乱后闹钟丢失。
             return android.app.PendingIntent.getBroadcast(
                 context,
                 taskId.hashCode(),
                 intent,
-                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_CANCEL_CURRENT
+                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
             )
         }
     }
