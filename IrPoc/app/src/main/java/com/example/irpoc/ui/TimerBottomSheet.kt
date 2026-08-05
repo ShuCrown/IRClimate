@@ -1,5 +1,6 @@
 package com.example.irpoc.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -69,6 +70,7 @@ fun TimerBottomSheet(
     defaultFan: AcFan = AcFan.AUTO,
     onDismiss: () -> Unit,
     onSave: (AcTimerTask) -> Unit,
+    onTest: ((AcTimerTask) -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -339,34 +341,77 @@ fun TimerBottomSheet(
                 }
             }
 
-            // 保存按钮
-            Button(
-                onClick = {
-                    onSave(
-                        AcTimerTask(
-                            id = initialTask?.id ?: UUID.randomUUID().toString(),
-                            name = name.ifBlank { "定时任务" },
-                            hour = hour,
-                            minute = minute,
-                            targetTemp = targetTemp,
-                            mode = mode,
-                            fan = fan,
-                            sleep = sleep,
-                            quiet = quiet,
-                            repeatType = repeatType,
-                            enabled = initialTask?.enabled ?: true,
-                        )
-                    )
-                },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Teal)
+            // 保存 + 测试按钮
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    if (initialTask != null) "保存修改" else "保存定时",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                // 测试按钮
+                if (onTest != null) {
+                    Button(
+                        onClick = {
+                            onTest(
+                                AcTimerTask(
+                                    id = initialTask?.id ?: UUID.randomUUID().toString(),
+                                    name = name.ifBlank { "定时任务" },
+                                    hour = hour,
+                                    minute = minute,
+                                    targetTemp = targetTemp,
+                                    mode = mode,
+                                    fan = fan,
+                                    sleep = sleep,
+                                    quiet = quiet,
+                                    repeatType = repeatType,
+                                    enabled = initialTask?.enabled ?: true,
+                                )
+                            )
+                        },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Teal
+                        ),
+                        border = BorderStroke(1.5.dp, Teal)
+                    ) {
+                        Text(
+                            "测试",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                // 保存按钮
+                Button(
+                    onClick = {
+                        onSave(
+                            AcTimerTask(
+                                id = initialTask?.id ?: UUID.randomUUID().toString(),
+                                name = name.ifBlank { "定时任务" },
+                                hour = hour,
+                                minute = minute,
+                                targetTemp = targetTemp,
+                                mode = mode,
+                                fan = fan,
+                                sleep = sleep,
+                                quiet = quiet,
+                                repeatType = repeatType,
+                                enabled = initialTask?.enabled ?: true,
+                            )
+                        )
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Teal)
+                ) {
+                    Text(
+                        if (initialTask != null) "保存修改" else "保存定时",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
             Spacer(Modifier.height(8.dp))

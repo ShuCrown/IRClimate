@@ -116,7 +116,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
         Log.d("IrPoc", "[${now()}] $msg")
     }
 
-    fun sendAc(powerOn: Boolean, temp: Int, mode: Int, fan: Int) {
+    fun sendAc(powerOn: Boolean, temp: Int, mode: Int, fan: Int, sleep: Boolean = false, quiet: Boolean = false) {
         try {
             val mgr = irManager
             if (mgr == null) {
@@ -129,7 +129,7 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
                 storage.saveAcState(AcState(powerOn, temp, mode, fan))
                 return
             }
-            val data = auxAcData(powerOn, temp, mode, fan)
+            val data = auxAcData(powerOn, temp, mode, fan, sleep = sleep, quiet = quiet)
             val pattern = bytesToNecPattern(data)
             mgr.transmit(38000, pattern)
             val mName = AcMode.fromCode(mode).label
@@ -375,6 +375,19 @@ fun MainScreen(context: Context, permissionLauncher: ActivityResultLauncher<Stri
             onDismiss = {
                 showTimerSheet = false
                 editingTask = null
+            },
+            onTest = { task ->
+                // 测试按钮：立即下发 IR 指令，不保存任务
+                sendAc(
+                    powerOn = true,
+                    temp = task.targetTemp,
+                    mode = task.mode.code,
+                    fan = task.fan.code,
+                    sleep = task.sleep,
+                    quiet = task.quiet
+                )
+                addEvent(EventType.TASK_EXECUTED, task.name, "测试执行: ${task.settingSummary()}")
+                log("🧪 测试执行: ${task.name} → ${task.settingSummary()}")
             },
             onSave = { task ->
                 if (editingTask != null) {
